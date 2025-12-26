@@ -80,8 +80,15 @@ export default function SettingsForm({ settings, onChange, onGenerate }: { setti
           Static time
         </label>
         <label>
-          Time (HH:MM)
-          <input value={settings.fajrStatic} onChange={(e) => update({ fajrStatic: e.target.value })} />
+          Time (HH:MM AM/PM)
+          <input
+            type="text"
+            placeholder="5:00 AM"
+            value={settings.fajrStatic}
+            onChange={(e) => update({ fajrStatic: e.target.value })}
+            pattern="^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(AM|PM|am|pm)$"
+            title="Format: H:MM AM/PM (e.g., 5:00 AM)"
+          />
         </label>
       </fieldset>
 
@@ -100,8 +107,15 @@ export default function SettingsForm({ settings, onChange, onGenerate }: { setti
           Static time
         </label>
         <label>
-          Time (HH:MM)
-          <input value={settings.zoharStatic} onChange={(e) => update({ zoharStatic: e.target.value })} />
+          Time (HH:MM AM/PM)
+          <input
+            type="text"
+            placeholder="1:15 PM"
+            value={settings.zoharStatic}
+            onChange={(e) => update({ zoharStatic: e.target.value })}
+            pattern="^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(AM|PM|am|pm)$"
+            title="Format: H:MM AM/PM (e.g., 1:15 PM)"
+          />
         </label>
       </fieldset>
 
@@ -120,8 +134,15 @@ export default function SettingsForm({ settings, onChange, onGenerate }: { setti
           Static time
         </label>
         <label>
-          Time (HH:MM)
-          <input value={settings.asrStatic} onChange={(e) => update({ asrStatic: e.target.value })} />
+          Time (HH:MM AM/PM)
+          <input
+            type="text"
+            placeholder="3:30 PM"
+            value={settings.asrStatic}
+            onChange={(e) => update({ asrStatic: e.target.value })}
+            pattern="^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(AM|PM|am|pm)$"
+            title="Format: H:MM AM/PM (e.g., 3:30 PM)"
+          />
         </label>
       </fieldset>
 
@@ -148,8 +169,15 @@ export default function SettingsForm({ settings, onChange, onGenerate }: { setti
           Static time
         </label>
         <label>
-          Time (HH:MM)
-          <input value={settings.ishaStatic} onChange={(e) => update({ ishaStatic: e.target.value })} />
+          Time (HH:MM AM/PM)
+          <input
+            type="text"
+            placeholder="8:30 PM"
+            value={settings.ishaStatic}
+            onChange={(e) => update({ ishaStatic: e.target.value })}
+            pattern="^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(AM|PM|am|pm)$"
+            title="Format: H:MM AM/PM (e.g., 8:30 PM)"
+          />
         </label>
       </fieldset>
 

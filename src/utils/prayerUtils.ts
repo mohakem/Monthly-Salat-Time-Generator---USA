@@ -45,10 +45,8 @@ export function computeIqama(dateStr: string, startTime: string, opt: IqamaOptio
   const start = toDateISO(dateStr, startTime)
   if (opt.mode === 'static') {
     // interpret static time as local time on same date
-    const [hh, mm] = opt.time.split(':').map(Number)
-    const d = new Date(start)
-    d.setHours(hh, mm, 0, 0)
-    return d
+    // Parse the static time which may be in 12-hour AM/PM format
+    return toDateISO(dateStr, opt.time)
   }
   const d = new Date(start)
   d.setMinutes(d.getMinutes() + opt.offsetMinutes)

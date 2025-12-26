@@ -39,7 +39,7 @@ export default function App() {
   return (
     <div className="container">
       <header>
-        <h1>Prayer Schedule Generator</h1>
+        <h1>Monthly Prayer Time Generator</h1>
       </header>
       <main>
         <aside>
