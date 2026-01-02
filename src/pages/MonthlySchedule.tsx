@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import { getMonthlyByZip } from '../api/aladhan'
 import SettingsForm, { Settings } from '../components/SettingsForm'
 import PrayerRow from '../components/PrayerRow'
@@ -14,7 +16,7 @@ function getDayOfWeek(dateStr: string): string {
   // dateStr: DD-MM-YYYY
   const [dd, mm, yyyy] = dateStr.split('-')
   const d = new Date(`${yyyy}-${mm}-${dd}`)
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   return days[d.getDay()]
 }
 
@@ -26,6 +28,26 @@ function getDayNumber(dateStr: string): string {
 function getMonthYearDisplay(month: number, year: number): string {
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   return `${months[month - 1]} ${year}`
+}
+
+function otherCalendarLabel(calendar: 'Gregorian' | 'Hijri') {
+  return calendar === 'Hijri' ? 'Gregorian' : 'Hijri'
+}
+
+function getCalendarDate(d: any, cal: 'Gregorian' | 'Hijri') {
+  return cal === 'Hijri' ? d.date.hijri.date : d.date.gregorian.date
+}
+
+function getFormattedCalendarDate(d: any, cal: 'Gregorian' | 'Hijri'): string {
+  if (cal === 'Hijri') {
+    const day = getDayNumber(d.date.hijri.date)
+    const month = d.date.hijri.month.en
+    return `${month} ${day}`
+  } else {
+    const day = getDayNumber(d.date.gregorian.date)
+    const month = d.date.gregorian.month.en
+    return `${month} ${day}`
+  }
 }
 
 export default function MonthlySchedule({ settings, generateSignal }: { settings: Settings; generateSignal?: number }) {
@@ -43,12 +65,18 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
         const dateIndex = data.findIndex((d) => d.date.gregorian.date === date)
         for (let i = dateIndex; i < data.length; i++) {
           const currentDate = data[i].date.gregorian.date
+          const dayOfWeek = getDayOfWeek(currentDate)
+          // Skip Friday Dhuhr (it's handled by Jummah times)
+          if (prayer === 'Dhuhr' && dayOfWeek === 'Fri') {
+            continue
+          }
           updated[currentDate] = { ...updated[currentDate], [prayer]: value }
         }
       } else {
         // Clear override for this date only
         if (updated[date]) {
-          delete updated[date][prayer]
+          const prayers = updated[date] as any
+          delete prayers[prayer]
         }
       }
       return updated
@@ -59,49 +87,54 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
     setLoading(true)
     setError(null)
     const year = new Date().getFullYear()
-    getMonthlyByZip(settings.zip, year, settings.month, settings.school)
+    getMonthlyByZip(settings.zip, year, settings.month, settings.school, settings.calendar as any)
       .then((d) => setData(d))
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }
 
   const downloadExcel = () => {
+    if (data.length === 0) {
+      alert('No data to export. Please generate the table first.')
+      return
+    }
+    
     const year = new Date().getFullYear()
     const rows = data.map((d) => {
-      const date = d.date.gregorian.date
+      const gregDate = d.date.gregorian.date
       const timings = d.timings
-      const overrides = iqamaOverrides[date] || {}
+      const overrides = iqamaOverrides[gregDate] || {}
       const iqamas = {
         Fajr:
           settings.fajrMode === 'static'
-            ? computeIqama(date, timings.Fajr, { mode: 'static', time: settings.fajrStatic })
-            : computeIqama(date, timings.Fajr, { mode: 'dynamic', offsetMinutes: settings.fajrOffset }),
+            ? computeIqama(gregDate, timings.Fajr, { mode: 'static', time: settings.fajrStatic })
+            : computeIqama(gregDate, timings.Fajr, { mode: 'dynamic', offsetMinutes: settings.fajrOffset }),
         Dhuhr:
           settings.zoharMode === 'static'
-            ? computeIqama(date, timings.Dhuhr, { mode: 'static', time: settings.zoharStatic })
-            : computeIqama(date, timings.Dhuhr, { mode: 'dynamic', offsetMinutes: settings.zoharOffset }),
+            ? computeIqama(gregDate, timings.Dhuhr, { mode: 'static', time: settings.zoharStatic })
+            : computeIqama(gregDate, timings.Dhuhr, { mode: 'dynamic', offsetMinutes: settings.zoharOffset }),
         Asr:
           settings.asrMode === 'static'
-            ? computeIqama(date, timings.Asr, { mode: 'static', time: settings.asrStatic })
-            : computeIqama(date, timings.Asr, { mode: 'dynamic', offsetMinutes: settings.asrOffset }),
-        Maghrib: computeIqama(date, timings.Maghrib, { mode: 'dynamic', offsetMinutes: settings.maghribOffset }),
+            ? computeIqama(gregDate, timings.Asr, { mode: 'static', time: settings.asrStatic })
+            : computeIqama(gregDate, timings.Asr, { mode: 'dynamic', offsetMinutes: settings.asrOffset }),
+        Maghrib: computeIqama(gregDate, timings.Maghrib, { mode: 'dynamic', offsetMinutes: settings.maghribOffset }),
         Isha:
           settings.ishaMode === 'static'
-            ? computeIqama(date, timings.Isha, { mode: 'static', time: settings.ishaStatic })
-            : computeIqama(date, timings.Isha, { mode: 'dynamic', offsetMinutes: settings.ishaOffset })
+            ? computeIqama(gregDate, timings.Isha, { mode: 'static', time: settings.ishaStatic })
+            : computeIqama(gregDate, timings.Isha, { mode: 'dynamic', offsetMinutes: settings.ishaOffset })
       }
       return {
-        Date: date,
-        Fajr: formatTime(parseTiming(date, timings.Fajr)),
+        Date: gregDate,
+        Fajr: formatTime(parseTiming(gregDate, timings.Fajr)),
         'Fajr Iqama': overrides.Fajr || formatTime(iqamas.Fajr),
-        Sunrise: formatTime(parseTiming(date, timings.Sunrise)),
-        Dhuhr: formatTime(parseTiming(date, timings.Dhuhr)),
+        Sunrise: formatTime(parseTiming(gregDate, timings.Sunrise)),
+        Dhuhr: formatTime(parseTiming(gregDate, timings.Dhuhr)),
         'Dhuhr Iqama': overrides.Dhuhr || formatTime(iqamas.Dhuhr),
-        Asr: formatTime(parseTiming(date, timings.Asr)),
+        Asr: formatTime(parseTiming(gregDate, timings.Asr)),
         'Asr Iqama': overrides.Asr || formatTime(iqamas.Asr),
-        Maghrib: formatTime(parseTiming(date, timings.Maghrib)),
+        Maghrib: formatTime(parseTiming(gregDate, timings.Maghrib)),
         'Maghrib Iqama': overrides.Maghrib || formatTime(iqamas.Maghrib),
-        Isha: formatTime(parseTiming(date, timings.Isha)),
+        Isha: formatTime(parseTiming(gregDate, timings.Isha)),
         'Isha Iqama': overrides.Isha || formatTime(iqamas.Isha)
       }
     })
@@ -110,6 +143,152 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Prayer Times')
     XLSX.writeFile(wb, `prayer-times-${settings.month}-${year}.xlsx`)
+  }
+
+  const downloadPDF = () => {
+    if (data.length === 0) {
+      alert('No data to export. Please generate the table first.')
+      return
+    }
+    
+    const year = new Date().getFullYear()
+    const doc = new jsPDF('p', 'mm', 'a4')
+    
+    // Add title with organization name
+    const startY = 15
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    const firstDay = data[0]
+    // Sanitize month names to remove special characters
+    const monthName = settings.calendar === 'Hijri'
+      ? firstDay.date.hijri.month.en.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      : firstDay.date.gregorian.month.en
+    const yearText = settings.calendar === 'Hijri'
+      ? firstDay.date.hijri.year
+      : firstDay.date.gregorian.year
+    const monthYearText = `${monthName} ${yearText}`
+    const titleText = settings.organizationName
+      ? `${settings.organizationName} Monthly Prayer Schedule - ${monthYearText}`
+      : `Monthly Prayer Schedule - ${monthYearText}`
+    doc.text(titleText, doc.internal.pageSize.getWidth() / 2, startY, { align: 'center' })
+    
+    // Prepare table data
+    const tableData = data.map((d) => {
+      const gregDate = d.date.gregorian.date
+      const primaryDate = getCalendarDate(d, settings.calendar as any)
+      const otherDate = getFormattedCalendarDate(d, otherCalendarLabel(settings.calendar as any) as any)
+      const dayNum = getDayNumber(primaryDate)
+      const dayOfWeek = getDayOfWeek(gregDate)
+      const timings = d.timings
+      const overrides = iqamaOverrides[gregDate] || {}
+      
+      const iqamas = {
+        Fajr:
+          settings.fajrMode === 'static'
+            ? computeIqama(gregDate, timings.Fajr, { mode: 'static', time: settings.fajrStatic })
+            : computeIqama(gregDate, timings.Fajr, { mode: 'dynamic', offsetMinutes: settings.fajrOffset }),
+        Dhuhr:
+          settings.zoharMode === 'static'
+            ? computeIqama(gregDate, timings.Dhuhr, { mode: 'static', time: settings.zoharStatic })
+            : computeIqama(gregDate, timings.Dhuhr, { mode: 'dynamic', offsetMinutes: settings.zoharOffset }),
+        Asr:
+          settings.asrMode === 'static'
+            ? computeIqama(gregDate, timings.Asr, { mode: 'static', time: settings.asrStatic })
+            : computeIqama(gregDate, timings.Asr, { mode: 'dynamic', offsetMinutes: settings.asrOffset }),
+        Maghrib: computeIqama(gregDate, timings.Maghrib, { mode: 'dynamic', offsetMinutes: settings.maghribOffset }),
+        Isha:
+          settings.ishaMode === 'static'
+            ? computeIqama(gregDate, timings.Isha, { mode: 'static', time: settings.ishaStatic })
+            : computeIqama(gregDate, timings.Isha, { mode: 'dynamic', offsetMinutes: settings.ishaOffset })
+      }
+      
+      const isFriday = dayOfWeek === 'Fri'
+      const dhuhrIqamaText = isFriday 
+        ? (settings.jumuahTimes || []).join(', ')
+        : (overrides.Dhuhr || formatTime(iqamas.Dhuhr))
+      
+      return [
+        dayNum,
+        otherDate,
+        dayOfWeek,
+        formatTime(parseTiming(gregDate, timings.Fajr)),
+        overrides.Fajr || formatTime(iqamas.Fajr),
+        formatTime(parseTiming(gregDate, timings.Sunrise)),
+        formatTime(parseTiming(gregDate, timings.Dhuhr)),
+        dhuhrIqamaText,
+        formatTime(parseTiming(gregDate, timings.Asr)),
+        overrides.Asr || formatTime(iqamas.Asr),
+        formatTime(parseTiming(gregDate, timings.Maghrib)),
+        overrides.Maghrib || formatTime(iqamas.Maghrib),
+        formatTime(parseTiming(gregDate, timings.Isha)),
+        overrides.Isha || formatTime(iqamas.Isha)
+      ]
+    })
+    
+    autoTable(doc, {
+      startY: startY + 3,
+      head: [[
+        'Date',
+        otherCalendarLabel(settings.calendar as any),
+        'Day',
+        'Fajr',
+        'Fajr Iqama',
+        'Sunrise',
+        'Dhuhr',
+        'Dhuhr Iqama',
+        'Asr',
+        'Asr Iqama',
+        'Maghrib',
+        'Maghrib Iqama',
+        'Isha',
+        'Isha Iqama'
+      ]],
+      body: tableData,
+      styles: {
+        fontSize: 5.5,
+        cellPadding: 0.8,
+        overflow: 'linebreak',
+        halign: 'center',
+        minCellHeight: 5
+      },
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 6,
+        minCellHeight: 5
+      },
+      columnStyles: {
+        0: { cellWidth: 8 },   // Date
+        1: { cellWidth: 15 },  // Other calendar
+        2: { cellWidth: 10 },  // Day
+        3: { cellWidth: 11 },  // Fajr
+        4: { cellWidth: 11 },  // Fajr Iqama
+        5: { cellWidth: 11 },  // Sunrise
+        6: { cellWidth: 11 },  // Dhuhr
+        7: { cellWidth: 11 },  // Dhuhr Iqama
+        8: { cellWidth: 11 },  // Asr
+        9: { cellWidth: 11 },  // Asr Iqama
+        10: { cellWidth: 11 }, // Maghrib
+        11: { cellWidth: 11 }, // Maghrib Iqama
+        12: { cellWidth: 11 }, // Isha
+        13: { cellWidth: 11 }  // Isha Iqama
+      },
+      didParseCell: (data: any) => {
+        // Make Friday rows bold
+        if (data.section === 'body' && data.column.index === 2) {
+          const cellText = data.cell.text[0]
+          if (cellText === 'Fri') {
+            Object.values(data.row.cells).forEach((cell: any) => {
+              cell.styles.fontStyle = 'bold'
+            })
+          }
+        }
+      },
+      margin: { top: 8, bottom: 3, left: 28, right: 28 }
+    })
+    
+    doc.save(`prayer-times-${settings.month}-${year}.pdf`)
   }
 
   useEffect(() => {
@@ -150,17 +329,32 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
         <button onClick={downloadExcel} style={{ marginLeft: 8 }}>
           Download as Excel
         </button>
+        <button onClick={downloadPDF} style={{ marginLeft: 8 }}>
+          Download as PDF
+        </button>
       </div>
 
       <table className="schedule">
         <thead>
+          {settings.organizationName && (
+            <tr>
+              <th colSpan={15} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', padding: '8px' }}>
+                {settings.organizationName}
+              </th>
+            </tr>
+          )}
           <tr>
-            <th colSpan={14} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '8px' }}>
-              {getMonthYearDisplay(settings.month, new Date().getFullYear())}
+            <th colSpan={15} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '8px' }}>
+              Monthly Prayer Schedule - {data.length > 0 && settings.calendar === 'Hijri'
+                ? `${data[0].date.hijri.month.en} ${data[0].date.hijri.year}`
+                : data.length > 0
+                ? `${data[0].date.gregorian.month.en} ${data[0].date.gregorian.year}`
+                : getMonthYearDisplay(settings.month, new Date().getFullYear())}
             </th>
           </tr>
           <tr>
             <th>Date</th>
+            <th>{otherCalendarLabel(settings.calendar as any)}</th>
             <th>Day</th>
             <th>Fajr</th>
             <th>Fajr Iqama</th>
@@ -181,102 +375,120 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
         </thead>
         <tbody>
           {data.map((d) => {
-            const date = d.date.gregorian.date
-            const dayNum = getDayNumber(date)
-            const dayOfWeek = getDayOfWeek(date)
+            const gregDate = d.date.gregorian.date
+            const primaryDate = getCalendarDate(d, settings.calendar as any)
+            const otherDate = getFormattedCalendarDate(d, otherCalendarLabel(settings.calendar as any) as any)
+
+            const dayNum = getDayNumber(primaryDate)      // day-of-month in selected calendar
+            const dayOfWeek = getDayOfWeek(gregDate)      // weekday from actual civil date
+
             const timings = d.timings
             const iqamas = {
               Fajr:
                 settings.fajrMode === 'static'
-                  ? computeIqama(date, timings.Fajr, { mode: 'static', time: settings.fajrStatic })
-                  : computeIqama(date, timings.Fajr, { mode: 'dynamic', offsetMinutes: settings.fajrOffset }),
+                  ? computeIqama(gregDate, timings.Fajr, { mode: 'static', time: settings.fajrStatic })
+                  : computeIqama(gregDate, timings.Fajr, { mode: 'dynamic', offsetMinutes: settings.fajrOffset }),
               Dhuhr:
                 settings.zoharMode === 'static'
-                  ? computeIqama(date, timings.Dhuhr, { mode: 'static', time: settings.zoharStatic })
-                  : computeIqama(date, timings.Dhuhr, { mode: 'dynamic', offsetMinutes: settings.zoharOffset }),
+                  ? computeIqama(gregDate, timings.Dhuhr, { mode: 'static', time: settings.zoharStatic })
+                  : computeIqama(gregDate, timings.Dhuhr, { mode: 'dynamic', offsetMinutes: settings.zoharOffset }),
               Asr:
                 settings.asrMode === 'static'
-                  ? computeIqama(date, timings.Asr, { mode: 'static', time: settings.asrStatic })
-                  : computeIqama(date, timings.Asr, { mode: 'dynamic', offsetMinutes: settings.asrOffset }),
-              Maghrib: computeIqama(date, timings.Maghrib, { mode: 'dynamic', offsetMinutes: settings.maghribOffset }),
+                  ? computeIqama(gregDate, timings.Asr, { mode: 'static', time: settings.asrStatic })
+                  : computeIqama(gregDate, timings.Asr, { mode: 'dynamic', offsetMinutes: settings.asrOffset }),
+              Maghrib: computeIqama(gregDate, timings.Maghrib, { mode: 'dynamic', offsetMinutes: settings.maghribOffset }),
               Isha:
                 settings.ishaMode === 'static'
-                  ? computeIqama(date, timings.Isha, { mode: 'static', time: settings.ishaStatic })
-                  : computeIqama(date, timings.Isha, { mode: 'dynamic', offsetMinutes: settings.ishaOffset })
+                  ? computeIqama(gregDate, timings.Isha, { mode: 'static', time: settings.ishaStatic })
+                  : computeIqama(gregDate, timings.Isha, { mode: 'dynamic', offsetMinutes: settings.ishaOffset })
             }
 
-            const fajrIqamaText = settings.fajrMode === 'static' && !isValidIqamaTime(date, timings.Fajr, iqamas.Fajr!) ? 'invalid time provided' : formatTime(iqamas.Fajr)
-            const dhuhrIqamaText = settings.zoharMode === 'static' && !isValidIqamaTime(date, timings.Dhuhr, iqamas.Dhuhr!) ? 'invalid time provided' : formatTime(iqamas.Dhuhr)
-            const asrIqamaText = settings.asrMode === 'static' && !isValidIqamaTime(date, timings.Asr, iqamas.Asr!) ? 'invalid time provided' : formatTime(iqamas.Asr)
-            const ishaIqamaText = settings.ishaMode === 'static' && !isValidIqamaTime(date, timings.Isha, iqamas.Isha!) ? 'invalid time provided' : formatTime(iqamas.Isha)
+            const fajrIqamaText = settings.fajrMode === 'static' && !isValidIqamaTime(gregDate, timings.Fajr, iqamas.Fajr!) ? 'invalid time provided' : formatTime(iqamas.Fajr)
+            const dhuhrIqamaText = settings.zoharMode === 'static' && !isValidIqamaTime(gregDate, timings.Dhuhr, iqamas.Dhuhr!) ? 'invalid time provided' : formatTime(iqamas.Dhuhr)
+            const asrIqamaText = settings.asrMode === 'static' && !isValidIqamaTime(gregDate, timings.Asr, iqamas.Asr!) ? 'invalid time provided' : formatTime(iqamas.Asr)
+            const ishaIqamaText = settings.ishaMode === 'static' && !isValidIqamaTime(gregDate, timings.Isha, iqamas.Isha!) ? 'invalid time provided' : formatTime(iqamas.Isha)
 
-            const overrides = iqamaOverrides[date] || {}
+            const overrides = iqamaOverrides[gregDate] || {}
             const fajrOverride = overrides.Fajr
             const dhuhrOverride = overrides.Dhuhr
             const asrOverride = overrides.Asr
             const maghribOverride = overrides.Maghrib
             const ishaOverride = overrides.Isha
+            const isFriday = dayOfWeek === 'Fri'
 
             return (
-              <tr key={date}>
+              <tr key={gregDate} style={isFriday ? { fontWeight: 'bold' } : {}}>
                 <td>{dayNum}</td>
+                <td>{otherDate}</td>
                 <td>{dayOfWeek}</td>
-                <td>{formatTime(parseTiming(date, timings.Fajr))}</td>
+                <td>{formatTime(parseTiming(gregDate, timings.Fajr))}</td>
                 <td>
                   <input
                     type="text"
                     placeholder="HH:MM AM/PM"
                     value={fajrOverride || ''}
-                    onChange={(e) => updateIqamaOverride(date, 'Fajr', e.target.value)}
+                    onChange={(e) => updateIqamaOverride(gregDate, 'Fajr', e.target.value)}
                     title="Enter time in 12-hour AM/PM format (e.g., 5:30 AM)"
                     style={{ width: '100px', padding: '2px' }}
                   />
                   {!fajrOverride && <span style={{ color: '#666' }}>{fajrIqamaText}</span>}
                 </td>
-                <td>{formatTime(parseTiming(date, timings.Sunrise))}</td>
-                <td>{formatTime(parseTiming(date, timings.Dhuhr))}</td>
+                <td>{formatTime(parseTiming(gregDate, timings.Sunrise))}</td>
+                <td>{formatTime(parseTiming(gregDate, timings.Dhuhr))}</td>
                 <td>
-                  <input
-                    type="text"
-                    placeholder="HH:MM AM/PM"
-                    value={dhuhrOverride || ''}
-                    onChange={(e) => updateIqamaOverride(date, 'Dhuhr', e.target.value)}
-                    title="Enter time in 12-hour AM/PM format (e.g., 1:30 PM)"
-                    style={{ width: '100px', padding: '2px' }}
-                  />
-                  {!dhuhrOverride && <span style={{ color: '#666' }}>{dhuhrIqamaText}</span>}
+                  {isFriday ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {(settings.jumuahTimes || []).map((time, idx) => (
+                        <span key={idx}>
+                          {time || `Jumu'ah ${idx + 1}`}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        placeholder="HH:MM AM/PM"
+                        value={dhuhrOverride || ''}
+                        onChange={(e) => updateIqamaOverride(gregDate, 'Dhuhr', e.target.value)}
+                        title="Enter time in 12-hour AM/PM format (e.g., 1:30 PM)"
+                        style={{ width: '100px', padding: '2px' }}
+                      />
+                      {!dhuhrOverride && <span style={{ color: '#666' }}>{dhuhrIqamaText}</span>}
+                    </>
+                  )}
                 </td>
-                <td>{formatTime(parseTiming(date, timings.Asr))}</td>
+                <td>{formatTime(parseTiming(gregDate, timings.Asr))}</td>
                 <td>
                   <input
                     type="text"
                     placeholder="HH:MM AM/PM"
                     value={asrOverride || ''}
-                    onChange={(e) => updateIqamaOverride(date, 'Asr', e.target.value)}
+                    onChange={(e) => updateIqamaOverride(gregDate, 'Asr', e.target.value)}
                     title="Enter time in 12-hour AM/PM format (e.g., 4:00 PM)"
                     style={{ width: '100px', padding: '2px' }}
                   />
                   {!asrOverride && <span style={{ color: '#666' }}>{asrIqamaText}</span>}
                 </td>
-                <td>{formatTime(parseTiming(date, timings.Maghrib))}</td>
+                <td>{formatTime(parseTiming(gregDate, timings.Maghrib))}</td>
                 <td>
                   <input
                     type="text"
                     placeholder="HH:MM AM/PM"
                     value={maghribOverride || ''}
-                    onChange={(e) => updateIqamaOverride(date, 'Maghrib', e.target.value)}
+                    onChange={(e) => updateIqamaOverride(gregDate, 'Maghrib', e.target.value)}
                     title="Enter time in 12-hour AM/PM format (e.g., 6:30 PM)"
                     style={{ width: '100px', padding: '2px' }}
                   />
                   {!maghribOverride && <span style={{ color: '#666' }}>{formatTime(iqamas.Maghrib)}</span>}
                 </td>
-                <td>{formatTime(parseTiming(date, timings.Isha))}</td>
+                <td>{formatTime(parseTiming(gregDate, timings.Isha))}</td>
                 <td>
                   <input
                     type="text"
                     placeholder="HH:MM AM/PM"
                     value={ishaOverride || ''}
-                    onChange={(e) => updateIqamaOverride(date, 'Isha', e.target.value)}
+                    onChange={(e) => updateIqamaOverride(gregDate, 'Isha', e.target.value)}
                     title="Enter time in 12-hour AM/PM format (e.g., 8:30 PM)"
                     style={{ width: '100px', padding: '2px' }}
                   />

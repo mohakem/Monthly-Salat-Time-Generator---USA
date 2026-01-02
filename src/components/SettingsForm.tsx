@@ -1,9 +1,14 @@
 import React from 'react'
 
+
 export type Settings = {
+  organizationName: string
   zip: string
   school: 'Shafi' | 'Hanafi'
+  calendar: 'Gregorian' | 'Hijri'
   month: number
+  jumuahCount: number
+  jumuahTimes: string[]
   fajrMode: 'static' | 'dynamic'
   fajrStatic: string
   fajrOffset: number
@@ -19,6 +24,35 @@ export type Settings = {
   zoharOffset: number
   includeSunrise: boolean
 }
+
+const GREGORIAN_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December'
+]
+
+const HIJRI_MONTHS = [
+  'Muharram',
+  'Safar',
+  "Rabiʿ al-Awwal",
+  "Rabiʿ al-Thani",
+  'Jumada al-Ula',
+  'Jumada al-Akhirah',
+  'Rajab',"Shaʿban",
+  'Ramadan',
+  'Shawwal',
+  "Dhu al-Qiʿdah",
+  "Dhu al-Hijjah"
+]
 
 const MONTHS = [
   'January',
@@ -41,6 +75,11 @@ export default function SettingsForm({ settings, onChange, onGenerate }: { setti
   return (
     <form className="settings" onSubmit={(e) => e.preventDefault()}>
       <label>
+        Organization Name
+        <input value={settings.organizationName} onChange={(e) => update({ organizationName: e.target.value })} placeholder="Enter organization name" />
+      </label>
+
+      <label>
         ZIP code
         <input value={settings.zip} onChange={(e) => update({ zip: e.target.value })} />
       </label>
@@ -54,16 +93,58 @@ export default function SettingsForm({ settings, onChange, onGenerate }: { setti
       </label>
 
       <label>
-        Month
-        <select value={settings.month} onChange={(e) => update({ month: Number(e.target.value) })}>
-          {MONTHS.map((m, i) => (
-            <option key={m} value={i + 1}>
-              {m}
-            </option>
-          ))}
+      Calendar
+      <select value={settings.calendar} onChange={(e) => {const cal = e.target.value as 'Gregorian' | 'Hijri'
+      // optional: reset month back to 1 when switching calendars
+        update({ calendar: cal, month: 1 })}}>  
+          <option value="Gregorian">Gregorian</option>
+          <option value="Hijri">Hijri</option>
         </select>
       </label>
 
+      <label>
+        Month
+        <select value={settings.month} onChange={(e) => update({ month: Number(e.target.value) })}>
+        {(settings.calendar === 'Hijri' ? HIJRI_MONTHS : GREGORIAN_MONTHS).map((m, i) => (
+        <option key={m} value={i + 1}>
+        {m}
+      </option>
+    ))}
+        </select>
+    </label>
+
+      <fieldset>
+        <legend>Jumu'ah (Friday Prayers)</legend>
+        <label>
+          Number of Jumu'ah Prayers
+          <select value={settings.jumuahCount} onChange={(e) => {
+            const count = Number(e.target.value)
+            const times = Array(count).fill('').map((_, i) => settings.jumuahTimes[i] || '')
+            update({ jumuahCount: count, jumuahTimes: times })
+          }}>
+            <option value={1}>1</option>
+            <option value={2}>2</option>
+            <option value={3}>3</option>
+            <option value={4}>4</option>
+          </select>
+        </label>
+
+        {Array.from({ length: settings.jumuahCount }).map((_, i) => (
+          <label key={i}>
+            Jumu'ah {i + 1} Start Time
+            <input
+              type="text"
+              placeholder="HH:MM AM/PM"
+              value={settings.jumuahTimes[i] || ''}
+              onChange={(e) => {
+                const newTimes = [...settings.jumuahTimes]
+                newTimes[i] = e.target.value
+                update({ jumuahTimes: newTimes })
+              }}
+            />
+          </label>
+        ))}
+      </fieldset>
 
       <fieldset>
         <legend>Fajr Iqama</legend>
