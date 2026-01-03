@@ -143,6 +143,18 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
     })
 
     const ws = XLSX.utils.json_to_sheet(rows)
+    
+    // Center align all cells
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C })
+        if (!ws[cellAddress]) continue
+        if (!ws[cellAddress].s) ws[cellAddress].s = {}
+        ws[cellAddress].s.alignment = { horizontal: 'center', vertical: 'center' }
+      }
+    }
+    
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Prayer Times')
     XLSX.writeFile(wb, `prayer-times-${settings.month}-${year}.xlsx`)
@@ -206,15 +218,9 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
       }
       
       const isFriday = dayOfWeek === 'Fri'
-      const getOrdinal = (n: number) => {
-        const ordinals = ['1st', '2nd', '3rd']
-        return ordinals[n] || `${n + 1}th`
-      }
       const jumuahTimes = settings.jumuahTimes || []
       const dhuhrIqamaText = isFriday 
-        ? jumuahTimes.length > 1 
-          ? jumuahTimes.map((time, idx) => `${getOrdinal(idx)}: ${time}`).join(', ')
-          : jumuahTimes.join(', ')
+        ? jumuahTimes.join('\n')
         : (overrides.Dhuhr || formatTime(iqamas.Dhuhr))
       
       return [
@@ -248,41 +254,43 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
         'Dhuhr Iqama',
         'Asr',
         'Asr Iqama',
-        'Maghrib',
+        'Sunset Maghrib',
         'Maghrib Iqama',
         'Isha',
         'Isha Iqama'
       ]],
       body: tableData,
       styles: {
-        fontSize: 5.5,
-        cellPadding: 0.8,
+        fontSize: 6.2,
+        cellPadding: 0.6,
         overflow: 'linebreak',
         halign: 'center',
-        minCellHeight: 5
+        minCellHeight: 5,
+        valign: 'middle'
       },
       headStyles: {
         fillColor: [41, 128, 185],
         textColor: 255,
         fontStyle: 'bold',
-        fontSize: 6,
-        minCellHeight: 5
+        fontSize: 6.8,
+        minCellHeight: 5,
+        halign: 'center'
       },
       columnStyles: {
-        0: { cellWidth: 8 },   // Date
-        1: { cellWidth: 15 },  // Other calendar
-        2: { cellWidth: 10 },  // Day
+        0: { cellWidth: 7 },   // Date
+        1: { cellWidth: 16 },  // Other calendar
+        2: { cellWidth: 9 },   // Day
         3: { cellWidth: 11 },  // Fajr
-        4: { cellWidth: 11 },  // Fajr Iqama
+        4: { cellWidth: 12 },  // Fajr Iqama
         5: { cellWidth: 11 },  // Sunrise
         6: { cellWidth: 11 },  // Dhuhr
-        7: { cellWidth: 11 },  // Dhuhr Iqama
+        7: { cellWidth: 12 },  // Dhuhr Iqama (wider for multiple Jumu'ah times)
         8: { cellWidth: 11 },  // Asr
-        9: { cellWidth: 11 },  // Asr Iqama
-        10: { cellWidth: 11 }, // Maghrib
-        11: { cellWidth: 11 }, // Maghrib Iqama
+        9: { cellWidth: 12 },  // Asr Iqama
+        10: { cellWidth: 14 }, // Maghrib (wider for "Sunset/Maghrib")
+        11: { cellWidth: 12 }, // Maghrib Iqama
         12: { cellWidth: 11 }, // Isha
-        13: { cellWidth: 11 }  // Isha Iqama
+        13: { cellWidth: 12 }  // Isha Iqama
       },
       didParseCell: (data: any) => {
         // Make Friday rows bold
@@ -295,7 +303,9 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
           }
         }
       },
-      margin: { top: 8, bottom: 3, left: 28, right: 28 }
+      margin: { top: 8, bottom: 8, left: 20, right: 20 },
+      tableWidth: 'wrap',
+      pageBreak: 'avoid'
     })
     
     doc.save(`prayer-times-${settings.month}-${year}.pdf`)
@@ -363,24 +373,24 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
             </th>
           </tr>
           <tr>
-            <th>Date</th>
-            <th>{otherCalendarLabel(settings.calendar as any)}</th>
-            <th>Day</th>
-            <th>Fajr</th>
-            <th>Fajr Iqama</th>
-            <th>Sunrise</th>
+            <th style={{ textAlign: 'center' }}>Date</th>
+            <th style={{ textAlign: 'center' }}>{otherCalendarLabel(settings.calendar as any)}</th>
+            <th style={{ textAlign: 'center' }}>Day</th>
+            <th style={{ textAlign: 'center' }}>Fajr</th>
+            <th style={{ textAlign: 'center' }}>Fajr Iqama</th>
+            <th style={{ textAlign: 'center' }}>Sunrise</th>
 
-            <th>Dhuhr</th>
-            <th>Dhuhr Iqama</th>
+            <th style={{ textAlign: 'center' }}>Dhuhr</th>
+            <th style={{ textAlign: 'center' }}>Dhuhr Iqama</th>
 
-            <th>Asr</th>
-            <th>Asr Iqama</th>
+            <th style={{ textAlign: 'center' }}>Asr</th>
+            <th style={{ textAlign: 'center' }}>Asr Iqama</th>
 
-            <th>Maghrib</th>
-            <th>Maghrib Iqama</th>
+            <th style={{ textAlign: 'center' }}>Sunset Maghrib</th>
+            <th style={{ textAlign: 'center' }}>Maghrib Iqama</th>
 
-            <th>Isha</th>
-            <th>Isha Iqama</th>
+            <th style={{ textAlign: 'center' }}>Isha</th>
+            <th style={{ textAlign: 'center' }}>Isha Iqama</th>
           </tr>
         </thead>
         <tbody>
@@ -428,11 +438,11 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
 
             return (
               <tr key={gregDate} style={isFriday ? { fontWeight: 'bold' } : {}}>
-                <td>{dayNum}</td>
-                <td>{otherDate}</td>
-                <td>{dayOfWeek}</td>
-                <td>{formatTime(parseTiming(gregDate, timings.Fajr))}</td>
-                <td>
+                <td style={{ textAlign: 'center' }}>{dayNum}</td>
+                <td style={{ textAlign: 'center' }}>{otherDate}</td>
+                <td style={{ textAlign: 'center' }}>{dayOfWeek}</td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Fajr))}</td>
+                <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
                     placeholder="HH:MM AM/PM"
@@ -443,21 +453,16 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
                   />
                   {!fajrOverride && <span style={{ color: '#666' }}>{fajrIqamaText}</span>}
                 </td>
-                <td>{formatTime(parseTiming(gregDate, timings.Sunrise))}</td>
-                <td>{formatTime(parseTiming(gregDate, timings.Dhuhr))}</td>
-                <td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Sunrise))}</td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Dhuhr))}</td>
+                <td style={{ textAlign: 'center' }}>
                   {isFriday ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      {(settings.jumuahTimes || []).map((time, idx) => {
-                        const ordinals = ['1st', '2nd', '3rd']
-                        const ordinal = ordinals[idx] || `${idx + 1}th`
-                        const showOrdinal = (settings.jumuahTimes || []).length > 1
-                        return (
-                          <span key={idx}>
-                            {time ? (showOrdinal ? `${ordinal}: ${time}` : time) : `Jumu'ah ${idx + 1}`}
-                          </span>
-                        )
-                      })}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                      {(settings.jumuahTimes || []).map((time, idx) => (
+                        <span key={idx}>
+                          {time || `Jumu'ah ${idx + 1}`}
+                        </span>
+                      ))}
                     </div>
                   ) : (
                     <>
@@ -473,8 +478,8 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
                     </>
                   )}
                 </td>
-                <td>{formatTime(parseTiming(gregDate, timings.Asr))}</td>
-                <td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Asr))}</td>
+                <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
                     placeholder="HH:MM AM/PM"
@@ -485,8 +490,8 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
                   />
                   {!asrOverride && <span style={{ color: '#666' }}>{asrIqamaText}</span>}
                 </td>
-                <td>{formatTime(parseTiming(gregDate, timings.Maghrib))}</td>
-                <td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Maghrib))}</td>
+                <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
                     placeholder="HH:MM AM/PM"
@@ -497,8 +502,8 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
                   />
                   {!maghribOverride && <span style={{ color: '#666' }}>{formatTime(iqamas.Maghrib)}</span>}
                 </td>
-                <td>{formatTime(parseTiming(gregDate, timings.Isha))}</td>
-                <td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Isha))}</td>
+                <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
                     placeholder="HH:MM AM/PM"
