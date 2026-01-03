@@ -43,14 +43,15 @@ const GREGORIAN_MONTHS = [
 const HIJRI_MONTHS = [
   'Muharram',
   'Safar',
-  "Rabiʿ al-Awwal",
-  "Rabiʿ al-Thani",
+  "Rabi al-Awwal",
+  "Rabi al-Thani",
   'Jumada al-Ula',
   'Jumada al-Akhirah',
-  'Rajab',"Shaʿban",
+  'Rajab',
+  'Shaban',
   'Ramadan',
   'Shawwal',
-  "Dhu al-Qiʿdah",
+  "Dhu al-Qidah",
   "Dhu al-Hijjah"
 ]
 

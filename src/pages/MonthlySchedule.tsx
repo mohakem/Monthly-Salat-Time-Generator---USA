@@ -41,7 +41,7 @@ function getCalendarDate(d: any, cal: 'Gregorian' | 'Hijri') {
 function getFormattedCalendarDate(d: any, cal: 'Gregorian' | 'Hijri'): string {
   if (cal === 'Hijri') {
     const day = getDayNumber(d.date.hijri.date)
-    const month = d.date.hijri.month.en
+    const month = d.date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')
     return `${month} ${day}`
   } else {
     const day = getDayNumber(d.date.gregorian.date)
@@ -86,7 +86,10 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
   const fetchData = () => {
     setLoading(true)
     setError(null)
-    const year = new Date().getFullYear()
+    // For Hijri calendar, use approximate Hijri year (Gregorian - 579)
+    // For Gregorian calendar, use current Gregorian year
+    const gregorianYear = new Date().getFullYear()
+    const year = settings.calendar === 'Hijri' ? gregorianYear - 579 : gregorianYear
     getMonthlyByZip(settings.zip, year, settings.month, settings.school, settings.calendar as any)
       .then((d) => setData(d))
       .catch((e) => setError(String(e)))
@@ -161,7 +164,7 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
     const firstDay = data[0]
     // Sanitize month names to remove special characters
     const monthName = settings.calendar === 'Hijri'
-      ? firstDay.date.hijri.month.en.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      ? firstDay.date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')
       : firstDay.date.gregorian.month.en
     const yearText = settings.calendar === 'Hijri'
       ? firstDay.date.hijri.year
@@ -203,8 +206,15 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
       }
       
       const isFriday = dayOfWeek === 'Fri'
+      const getOrdinal = (n: number) => {
+        const ordinals = ['1st', '2nd', '3rd']
+        return ordinals[n] || `${n + 1}th`
+      }
+      const jumuahTimes = settings.jumuahTimes || []
       const dhuhrIqamaText = isFriday 
-        ? (settings.jumuahTimes || []).join(', ')
+        ? jumuahTimes.length > 1 
+          ? jumuahTimes.map((time, idx) => `${getOrdinal(idx)}: ${time}`).join(', ')
+          : jumuahTimes.join(', ')
         : (overrides.Dhuhr || formatTime(iqamas.Dhuhr))
       
       return [
@@ -346,7 +356,7 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
           <tr>
             <th colSpan={15} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '8px' }}>
               Monthly Prayer Schedule - {data.length > 0 && settings.calendar === 'Hijri'
-                ? `${data[0].date.hijri.month.en} ${data[0].date.hijri.year}`
+                ? `${data[0].date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')} ${data[0].date.hijri.year}`
                 : data.length > 0
                 ? `${data[0].date.gregorian.month.en} ${data[0].date.gregorian.year}`
                 : getMonthYearDisplay(settings.month, new Date().getFullYear())}
@@ -438,11 +448,16 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
                 <td>
                   {isFriday ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      {(settings.jumuahTimes || []).map((time, idx) => (
-                        <span key={idx}>
-                          {time || `Jumu'ah ${idx + 1}`}
-                        </span>
-                      ))}
+                      {(settings.jumuahTimes || []).map((time, idx) => {
+                        const ordinals = ['1st', '2nd', '3rd']
+                        const ordinal = ordinals[idx] || `${idx + 1}th`
+                        const showOrdinal = (settings.jumuahTimes || []).length > 1
+                        return (
+                          <span key={idx}>
+                            {time ? (showOrdinal ? `${ordinal}: ${time}` : time) : `Jumu'ah ${idx + 1}`}
+                          </span>
+                        )
+                      })}
                     </div>
                   ) : (
                     <>
