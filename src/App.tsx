@@ -1,3 +1,6 @@
+// Copyright 2026 Mohakem Khan
+// Licensed under the Apache License, Version 2.0
+
 import React, { useEffect, useState } from 'react'
 import SettingsForm, { Settings } from './components/SettingsForm'
 import MonthlySchedule from './pages/MonthlySchedule'

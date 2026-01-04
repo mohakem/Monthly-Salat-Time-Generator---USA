@@ -1,3 +1,6 @@
+// Copyright 2026 Mohakem Khan
+// Licensed under the Apache License, Version 2.0
+
 export type IqamaOption =
   | { mode: 'static'; time: string }
   | { mode: 'dynamic'; offsetMinutes: number }

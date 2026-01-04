@@ -24,3 +24,8 @@ GitHub Pages
 Replace `<your-github-username>` and `<repo-name>` with your GitHub account and repository name.
 
 If you prefer Vercel or Netlify, see `DEPLOYMENT.md` for instructions.
+
+## License
+
+This project is licensed under the Apache License, Version 2.0.
+See the LICENSE file for details.

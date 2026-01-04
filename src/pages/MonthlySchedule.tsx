@@ -1,3 +1,6 @@
+// Copyright 2026 Mohakem Khan
+// Licensed under the Apache License, Version 2.0
+
 import React, { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
