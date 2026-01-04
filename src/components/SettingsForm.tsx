@@ -70,8 +70,19 @@ const MONTHS = [
   'December'
 ]
 
-export default function SettingsForm({ settings, onChange, onGenerate }: { settings: Settings; onChange: (s: Settings) => void; onGenerate?: () => void }) {
+export default function SettingsForm({ settings, onChange, onGenerate, logo, onLogoChange }: { settings: Settings; onChange: (s: Settings) => void; onGenerate?: () => void; logo?: string | null; onLogoChange?: (logo: string | null) => void }) {
   const update = (patch: Partial<Settings>) => onChange({ ...settings, ...patch })
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file && onLogoChange) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        onLogoChange(event.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
 
   return (
     <form className="settings" onSubmit={(e) => e.preventDefault()}>
@@ -79,6 +90,29 @@ export default function SettingsForm({ settings, onChange, onGenerate }: { setti
         Organization Name
         <input value={settings.organizationName} onChange={(e) => update({ organizationName: e.target.value })} placeholder="Enter organization name" />
       </label>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label htmlFor="logo-upload" style={{ cursor: 'pointer', padding: '8px 12px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: '#f8f8f8', display: 'inline-block' }}>
+          {logo ? 'Change Logo' : 'Upload Logo'}
+        </label>
+        <input
+          id="logo-upload"
+          type="file"
+          accept="image/*"
+          onChange={handleLogoUpload}
+          style={{ display: 'none' }}
+        />
+        {logo && (
+          <button
+            onClick={() => onLogoChange?.(null)}
+            style={{ marginLeft: 8, padding: '8px 12px', cursor: 'pointer' }}
+            title="Remove logo"
+            type="button"
+          >
+            ✕ Remove
+          </button>
+        )}
+      </div>
 
       <label>
         ZIP code

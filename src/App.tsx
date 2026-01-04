@@ -42,6 +42,7 @@ export default function App() {
   }, [settings])
 
   const [generateSignal, setGenerateSignal] = useState<number | undefined>(undefined)
+  const [logo, setLogo] = useState<string | null>(null)
 
   return (
     <div className="container">
@@ -72,10 +73,12 @@ export default function App() {
             settings={settings}
             onChange={setSettings}
             onGenerate={() => setGenerateSignal((s) => (s ?? 0) + 1)}
+            logo={logo}
+            onLogoChange={setLogo}
           />
         </aside>
         <section>
-          <MonthlySchedule settings={settings} generateSignal={generateSignal} />
+          <MonthlySchedule settings={settings} generateSignal={generateSignal} logo={logo} />
         </section>
       </main>
     </div>

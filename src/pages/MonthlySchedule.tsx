@@ -15,7 +15,8 @@ function isValidIqamaTime(date: string, prayerTimeStr: string, iqamaDate: Date):
 function getDayOfWeek(dateStr: string): string {
   // dateStr: DD-MM-YYYY
   const [dd, mm, yyyy] = dateStr.split('-')
-  const d = new Date(`${yyyy}-${mm}-${dd}`)
+  // Use Date constructor with year, month (0-indexed), day to avoid timezone issues
+  const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd))
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   return days[d.getDay()]
 }
@@ -50,19 +51,39 @@ function getFormattedCalendarDate(d: any, cal: 'Gregorian' | 'Hijri'): string {
   }
 }
 
-export default function MonthlySchedule({ settings, generateSignal }: { settings: Settings; generateSignal?: number }) {
+export default function MonthlySchedule({ settings, generateSignal, logo }: { settings: Settings; generateSignal?: number; logo?: string | null }) {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [generated, setGenerated] = useState(false)
   const [iqamaOverrides, setIqamaOverrides] = useState<Record<string, Partial<Record<'Fajr' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha', string>>>>({})
+  const [specialNotes, setSpecialNotes] = useState<string>('')
 
   const updateIqamaOverride = (date: string, prayer: string, value: string) => {
     setIqamaOverrides((prev) => {
       const updated = { ...prev }
       if (value) {
-        // Find the index of this date and apply to all subsequent dates
+        // Validate that the iqama time is after the prayer time
         const dateIndex = data.findIndex((d) => d.date.gregorian.date === date)
+        if (dateIndex >= 0) {
+          const dayData = data[dateIndex]
+          const prayerTimeStr = dayData.timings[prayer as keyof typeof dayData.timings]
+          const prayerTime = parseTiming(date, prayerTimeStr)
+          
+          // Try to parse the input value
+          try {
+            const iqamaTime = parseTiming(date, value)
+            if (iqamaTime <= prayerTime) {
+              alert('Iqama time is provided earlier than prayer start time')
+              return prev // Don't update, keep previous state
+            }
+          } catch (e) {
+            // Invalid format, but let it through for now - user might still be typing
+            // The existing validation will catch it
+          }
+        }
+        
+        // Find the index of this date and apply to all subsequent dates
         for (let i = dateIndex; i < data.length; i++) {
           const currentDate = data[i].date.gregorian.date
           const dayOfWeek = getDayOfWeek(currentDate)
@@ -169,8 +190,45 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
     const year = new Date().getFullYear()
     const doc = new jsPDF('p', 'mm', 'a4')
     
-    // Add title with organization name
-    const startY = 15
+    // Add logo and organization name
+    let startY = 10
+    const pageWidth = doc.internal.pageSize.getWidth()
+    
+    if (logo && settings.organizationName) {
+      // Both logo and organization name - side by side
+      const logoHeight = 15
+      const logoWidth = 15
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      
+      // Calculate total width needed
+      const textWidth = doc.getTextWidth(settings.organizationName)
+      const totalWidth = logoWidth + 5 + textWidth // 5mm gap between logo and text
+      const startX = (pageWidth - totalWidth) / 2
+      
+      // Add logo on the left
+      doc.addImage(logo, 'PNG', startX, startY, logoWidth, logoHeight)
+      
+      // Add organization name on the right, vertically centered with logo
+      const textY = startY + (logoHeight / 2) + 3 // Adjust vertical alignment
+      doc.text(settings.organizationName, startX + logoWidth + 5, textY)
+      
+      startY += logoHeight + 4
+    } else if (logo) {
+      // Only logo - centered
+      const logoHeight = 15
+      const logoWidth = 15
+      doc.addImage(logo, 'PNG', (pageWidth - logoWidth) / 2, startY, logoWidth, logoHeight)
+      startY += logoHeight + 2
+    } else if (settings.organizationName) {
+      // Only organization name - centered
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text(settings.organizationName, pageWidth / 2, startY, { align: 'center' })
+      startY += 6
+    }
+    
+    // Add title
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
     const firstDay = data[0]
@@ -182,13 +240,12 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
       ? firstDay.date.hijri.year
       : firstDay.date.gregorian.year
     const monthYearText = `${monthName} ${yearText}`
-    const titleText = settings.organizationName
-      ? `${settings.organizationName} Monthly Prayer Schedule - ${monthYearText}`
-      : `Monthly Prayer Schedule - ${monthYearText}`
-    doc.text(titleText, doc.internal.pageSize.getWidth() / 2, startY, { align: 'center' })
+    const titleText = `Monthly Prayer Schedule - ${monthYearText}`
+    doc.text(titleText, pageWidth / 2, startY, { align: 'center' })
+    startY += 2
     
-    // Prepare table data
-    const tableData = data.map((d) => {
+    // Prepare table data with Iqama values
+    const rawTableData = data.map((d) => {
       const gregDate = d.date.gregorian.date
       const primaryDate = getCalendarDate(d, settings.calendar as any)
       const otherDate = getFormattedCalendarDate(d, otherCalendarLabel(settings.calendar as any) as any)
@@ -223,22 +280,78 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
         ? jumuahTimes.join('\n')
         : (overrides.Dhuhr || formatTime(iqamas.Dhuhr))
       
-      return [
+      return {
         dayNum,
         otherDate,
         dayOfWeek,
-        formatTime(parseTiming(gregDate, timings.Fajr)),
-        overrides.Fajr || formatTime(iqamas.Fajr),
-        formatTime(parseTiming(gregDate, timings.Sunrise)),
-        formatTime(parseTiming(gregDate, timings.Dhuhr)),
-        dhuhrIqamaText,
-        formatTime(parseTiming(gregDate, timings.Asr)),
-        overrides.Asr || formatTime(iqamas.Asr),
-        formatTime(parseTiming(gregDate, timings.Maghrib)),
-        overrides.Maghrib || formatTime(iqamas.Maghrib),
-        formatTime(parseTiming(gregDate, timings.Isha)),
-        overrides.Isha || formatTime(iqamas.Isha)
+        fajrTime: formatTime(parseTiming(gregDate, timings.Fajr)),
+        fajrIqama: overrides.Fajr || formatTime(iqamas.Fajr),
+        sunrise: formatTime(parseTiming(gregDate, timings.Sunrise)),
+        dhuhrTime: formatTime(parseTiming(gregDate, timings.Dhuhr)),
+        dhuhrIqama: dhuhrIqamaText,
+        asrTime: formatTime(parseTiming(gregDate, timings.Asr)),
+        asrIqama: overrides.Asr || formatTime(iqamas.Asr),
+        maghribTime: formatTime(parseTiming(gregDate, timings.Maghrib)),
+        maghribIqama: overrides.Maghrib || formatTime(iqamas.Maghrib),
+        ishaTime: formatTime(parseTiming(gregDate, timings.Isha)),
+        ishaIqama: overrides.Isha || formatTime(iqamas.Isha),
+        isFriday
+      }
+    })
+
+    // Calculate rowSpans for Iqama columns (indices 4, 7, 9, 11, 13)
+    const iqamaColumns = [
+      { index: 4, key: 'fajrIqama' },
+      { index: 7, key: 'dhuhrIqama' },
+      { index: 9, key: 'asrIqama' },
+      { index: 11, key: 'maghribIqama' },
+      { index: 13, key: 'ishaIqama' }
+    ]
+    
+    const rowSpans: Record<number, Record<number, number>> = {}
+    
+    iqamaColumns.forEach(({ index, key }) => {
+      let i = 0
+      while (i < rawTableData.length) {
+        const currentValue = rawTableData[i][key as keyof typeof rawTableData[0]]
+        let span = 1
+        
+        // Count consecutive rows with same value
+        while (i + span < rawTableData.length && 
+               rawTableData[i + span][key as keyof typeof rawTableData[0]] === currentValue) {
+          span++
+        }
+        
+        // Store rowSpan if greater than 1
+        if (span > 1) {
+          if (!rowSpans[i]) rowSpans[i] = {}
+          rowSpans[i][index] = span
+        }
+        
+        i += span
+      }
+    })
+    
+    // Build final table data with rowSpan information
+    const tableData = rawTableData.map((row, rowIndex) => {
+      const baseRow = [
+        row.dayNum,
+        row.otherDate,
+        row.dayOfWeek,
+        row.fajrTime,
+        row.fajrIqama,
+        row.sunrise,
+        row.dhuhrTime,
+        row.dhuhrIqama,
+        row.asrTime,
+        row.asrIqama,
+        row.maghribTime,
+        row.maghribIqama,
+        row.ishaTime,
+        row.ishaIqama
       ]
+      
+      return baseRow
     })
     
     autoTable(doc, {
@@ -292,14 +405,24 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
         12: { cellWidth: 11 }, // Isha
         13: { cellWidth: 12 }  // Isha Iqama
       },
-      didParseCell: (data: any) => {
+      didParseCell: (cellData: any) => {
         // Make Friday rows bold
-        if (data.section === 'body' && data.column.index === 2) {
-          const cellText = data.cell.text[0]
+        if (cellData.section === 'body' && cellData.column.index === 2) {
+          const cellText = cellData.cell.text[0]
           if (cellText === 'Fri') {
-            Object.values(data.row.cells).forEach((cell: any) => {
+            Object.values(cellData.row.cells).forEach((cell: any) => {
               cell.styles.fontStyle = 'bold'
             })
+          }
+        }
+        
+        // Apply rowSpan for Iqama columns
+        if (cellData.section === 'body') {
+          const rowIndex = cellData.row.index
+          const colIndex = cellData.column.index
+          
+          if (rowSpans[rowIndex] && rowSpans[rowIndex][colIndex]) {
+            cellData.cell.rowSpan = rowSpans[rowIndex][colIndex]
           }
         }
       },
@@ -307,6 +430,18 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
       tableWidth: 'wrap',
       pageBreak: 'avoid'
     })
+    
+    // Add special notes at the bottom if provided
+    if (specialNotes) {
+      const finalY = (doc as any).lastAutoTable.finalY || startY + 3
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Notes:', 20, finalY + 8)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      const splitNotes = doc.splitTextToSize(specialNotes, pageWidth - 40)
+      doc.text(splitNotes, 20, finalY + 14)
+    }
     
     doc.save(`prayer-times-${settings.month}-${year}.pdf`)
   }
@@ -352,6 +487,27 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
         <button onClick={downloadPDF} style={{ marginLeft: 8 }}>
           Download as PDF
         </button>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ display: 'block', marginBottom: 4, fontWeight: 'bold' }}>
+          Special Notes (will appear at bottom of PDF):
+        </label>
+        <textarea
+          value={specialNotes}
+          onChange={(e) => setSpecialNotes(e.target.value)}
+          placeholder="Enter any special notes or announcements..."
+          rows={3}
+          style={{
+            width: '100%',
+            padding: '8px',
+            fontSize: '14px',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            fontFamily: 'inherit',
+            resize: 'vertical'
+          }}
+        />
       </div>
 
       <table className="schedule">
@@ -423,10 +579,10 @@ export default function MonthlySchedule({ settings, generateSignal }: { settings
                   : computeIqama(gregDate, timings.Isha, { mode: 'dynamic', offsetMinutes: settings.ishaOffset })
             }
 
-            const fajrIqamaText = settings.fajrMode === 'static' && !isValidIqamaTime(gregDate, timings.Fajr, iqamas.Fajr!) ? 'invalid time provided' : formatTime(iqamas.Fajr)
-            const dhuhrIqamaText = settings.zoharMode === 'static' && !isValidIqamaTime(gregDate, timings.Dhuhr, iqamas.Dhuhr!) ? 'invalid time provided' : formatTime(iqamas.Dhuhr)
-            const asrIqamaText = settings.asrMode === 'static' && !isValidIqamaTime(gregDate, timings.Asr, iqamas.Asr!) ? 'invalid time provided' : formatTime(iqamas.Asr)
-            const ishaIqamaText = settings.ishaMode === 'static' && !isValidIqamaTime(gregDate, timings.Isha, iqamas.Isha!) ? 'invalid time provided' : formatTime(iqamas.Isha)
+            const fajrIqamaText = settings.fajrMode === 'static' && !isValidIqamaTime(gregDate, timings.Fajr, iqamas.Fajr!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Fajr)
+            const dhuhrIqamaText = settings.zoharMode === 'static' && !isValidIqamaTime(gregDate, timings.Dhuhr, iqamas.Dhuhr!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Dhuhr)
+            const asrIqamaText = settings.asrMode === 'static' && !isValidIqamaTime(gregDate, timings.Asr, iqamas.Asr!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Asr)
+            const ishaIqamaText = settings.ishaMode === 'static' && !isValidIqamaTime(gregDate, timings.Isha, iqamas.Isha!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Isha)
 
             const overrides = iqamaOverrides[gregDate] || {}
             const fajrOverride = overrides.Fajr
