@@ -229,9 +229,11 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
     }
     
     // Add title
-    doc.setFontSize(14)
+    doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
     const firstDay = data[0]
+    const lastDay = data[data.length - 1]
+    
     // Sanitize month names to remove special characters
     const monthName = settings.calendar === 'Hijri'
       ? firstDay.date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')
@@ -240,7 +242,26 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
       ? firstDay.date.hijri.year
       : firstDay.date.gregorian.year
     const monthYearText = `${monthName} ${yearText}`
-    const titleText = `Monthly Prayer Schedule - ${monthYearText}`
+    
+    // Get alternative calendar range
+    const altFirstMonth = settings.calendar === 'Hijri'
+      ? firstDay.date.gregorian.month.en.substring(0, 3)
+      : firstDay.date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')
+    const altLastMonth = settings.calendar === 'Hijri'
+      ? lastDay.date.gregorian.month.en.substring(0, 3)
+      : lastDay.date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')
+    const altFirstYear = settings.calendar === 'Hijri'
+      ? String(firstDay.date.gregorian.year).substring(2)
+      : firstDay.date.hijri.year
+    const altLastYear = settings.calendar === 'Hijri'
+      ? String(lastDay.date.gregorian.year).substring(2)
+      : lastDay.date.hijri.year
+    
+    const altCalendarText = altFirstMonth === altLastMonth && altFirstYear === altLastYear
+      ? `${altFirstMonth} '${altFirstYear}`
+      : `${altFirstMonth} '${altFirstYear} - ${altLastMonth} '${altLastYear}`
+    
+    const titleText = `Monthly Prayer Schedule - ${monthYearText} (${altCalendarText})`
     doc.text(titleText, pageWidth / 2, startY, { align: 'center' })
     startY += 2
     
@@ -521,11 +542,37 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
           )}
           <tr>
             <th colSpan={15} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '8px' }}>
-              Monthly Prayer Schedule - {data.length > 0 && settings.calendar === 'Hijri'
-                ? `${data[0].date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')} ${data[0].date.hijri.year}`
-                : data.length > 0
-                ? `${data[0].date.gregorian.month.en} ${data[0].date.gregorian.year}`
-                : getMonthYearDisplay(settings.month, new Date().getFullYear())}
+              {data.length > 0 ? (() => {
+                const firstDay = data[0]
+                const lastDay = data[data.length - 1]
+                
+                const monthName = settings.calendar === 'Hijri'
+                  ? firstDay.date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')
+                  : firstDay.date.gregorian.month.en
+                const yearText = settings.calendar === 'Hijri'
+                  ? firstDay.date.hijri.year
+                  : firstDay.date.gregorian.year
+                
+                // Get alternative calendar range
+                const altFirstMonth = settings.calendar === 'Hijri'
+                  ? firstDay.date.gregorian.month.en.substring(0, 3)
+                  : firstDay.date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')
+                const altLastMonth = settings.calendar === 'Hijri'
+                  ? lastDay.date.gregorian.month.en.substring(0, 3)
+                  : lastDay.date.hijri.month.en.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ʿʾ]/g, '')
+                const altFirstYear = settings.calendar === 'Hijri'
+                  ? String(firstDay.date.gregorian.year).substring(2)
+                  : firstDay.date.hijri.year
+                const altLastYear = settings.calendar === 'Hijri'
+                  ? String(lastDay.date.gregorian.year).substring(2)
+                  : lastDay.date.hijri.year
+                
+                const altCalendarText = altFirstMonth === altLastMonth && altFirstYear === altLastYear
+                  ? `${altFirstMonth} '${altFirstYear}`
+                  : `${altFirstMonth} '${altFirstYear} - ${altLastMonth} '${altLastYear}`
+                
+                return `Monthly Prayer Schedule - ${monthName} ${yearText} (${altCalendarText})`
+              })() : `Monthly Prayer Schedule - ${getMonthYearDisplay(settings.month, new Date().getFullYear())}`}
             </th>
           </tr>
           <tr>
