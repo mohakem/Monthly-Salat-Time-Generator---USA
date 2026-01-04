@@ -190,47 +190,10 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
     const year = new Date().getFullYear()
     const doc = new jsPDF('p', 'mm', 'a4')
     
-    // Add logo and organization name
     let startY = 10
     const pageWidth = doc.internal.pageSize.getWidth()
     
-    if (logo && settings.organizationName) {
-      // Both logo and organization name - side by side
-      const logoHeight = 15
-      const logoWidth = 15
-      doc.setFontSize(16)
-      doc.setFont('helvetica', 'bold')
-      
-      // Calculate total width needed
-      const textWidth = doc.getTextWidth(settings.organizationName)
-      const totalWidth = logoWidth + 5 + textWidth // 5mm gap between logo and text
-      const startX = (pageWidth - totalWidth) / 2
-      
-      // Add logo on the left
-      doc.addImage(logo, 'PNG', startX, startY, logoWidth, logoHeight)
-      
-      // Add organization name on the right, vertically centered with logo
-      const textY = startY + (logoHeight / 2) + 3 // Adjust vertical alignment
-      doc.text(settings.organizationName, startX + logoWidth + 5, textY)
-      
-      startY += logoHeight + 4
-    } else if (logo) {
-      // Only logo - centered
-      const logoHeight = 15
-      const logoWidth = 15
-      doc.addImage(logo, 'PNG', (pageWidth - logoWidth) / 2, startY, logoWidth, logoHeight)
-      startY += logoHeight + 2
-    } else if (settings.organizationName) {
-      // Only organization name - centered
-      doc.setFontSize(16)
-      doc.setFont('helvetica', 'bold')
-      doc.text(settings.organizationName, pageWidth / 2, startY, { align: 'center' })
-      startY += 6
-    }
-    
-    // Add title
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'bold')
+    // Prepare title text
     const firstDay = data[0]
     const lastDay = data[data.length - 1]
     
@@ -262,8 +225,6 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
       : `${altFirstMonth} '${altFirstYear} - ${altLastMonth} '${altLastYear}`
     
     const titleText = `Monthly Prayer Schedule - ${monthYearText} (${altCalendarText})`
-    doc.text(titleText, pageWidth / 2, startY, { align: 'center' })
-    startY += 2
     
     // Prepare table data with Iqama values
     const rawTableData = data.map((d) => {
@@ -330,9 +291,24 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
     ]
     
     const rowSpans: Record<number, Record<number, number>> = {}
+    const iqamaColors: Record<number, Record<number, [number, number, number]>> = {}
+    
+    // Define shades of blue for highlighting time changes
+    const blueShades: [number, number, number][] = [
+      [173, 216, 230], // Light blue
+      [135, 206, 250], // Sky blue
+      [176, 196, 222], // Light steel blue
+      [176, 224, 230], // Powder blue
+      [175, 238, 238], // Pale turquoise
+      [224, 255, 255], // Light cyan
+      [240, 248, 255], // Alice blue
+      [230, 230, 250], // Lavender
+    ]
     
     iqamaColumns.forEach(({ index, key }) => {
       let i = 0
+      let colorIndex = 0
+      
       while (i < rawTableData.length) {
         const currentValue = rawTableData[i][key as keyof typeof rawTableData[0]]
         let span = 1
@@ -349,7 +325,15 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
           rowSpans[i][index] = span
         }
         
+        // Assign color to all rows in this group
+        const color = blueShades[colorIndex % blueShades.length]
+        for (let j = i; j < i + span; j++) {
+          if (!iqamaColors[j]) iqamaColors[j] = {}
+          iqamaColors[j][index] = color
+        }
+        
         i += span
+        colorIndex++ // Change color for next time value
       }
     })
     
@@ -376,23 +360,35 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
     })
     
     autoTable(doc, {
-      startY: startY + 3,
-      head: [[
-        'Date',
-        otherCalendarLabel(settings.calendar as any),
-        'Day',
-        'Fajr',
-        'Fajr Iqama',
-        'Sunrise',
-        'Dhuhr',
-        'Dhuhr Iqama',
-        'Asr',
-        'Asr Iqama',
-        'Sunset Maghrib',
-        'Maghrib Iqama',
-        'Isha',
-        'Isha Iqama'
-      ]],
+      startY: startY,
+      head: [
+        // First row: Logo cell + Organization name
+        ...(logo || settings.organizationName ? [[
+          { content: '', rowSpan: 2, styles: { fillColor: [255, 255, 255] } }, // Logo cell spanning 2 rows
+          { content: settings.organizationName || '', colSpan: 13, styles: { halign: 'center', fontSize: 14, fontStyle: 'bold', fillColor: [255, 255, 255], textColor: [0, 0, 0], minCellHeight: 15 } }
+        ]] : []),
+        // Second row: Month/year title
+        ...(logo || settings.organizationName ? [[
+          { content: titleText, colSpan: 13, styles: { halign: 'center', fontSize: 10, fontStyle: 'bold', fillColor: [255, 255, 255], textColor: [0, 0, 0] } }
+        ]] : []),
+        // Column headers
+        [
+          'Date',
+          otherCalendarLabel(settings.calendar as any),
+          'Day',
+          'Fajr',
+          'Fajr Iqama',
+          'Sunrise',
+          'Dhuhr',
+          'Dhuhr Iqama',
+          'Asr',
+          'Asr Iqama',
+          'Sunset Maghrib',
+          'Maghrib Iqama',
+          'Isha',
+          'Isha Iqama'
+        ]
+      ],
       body: tableData,
       styles: {
         fontSize: 6.2,
@@ -411,7 +407,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
         halign: 'center'
       },
       columnStyles: {
-        0: { cellWidth: 7 },   // Date
+        0: { cellWidth: 14 },  // Date (logo column - doubled from 7 to 14)
         1: { cellWidth: 16 },  // Other calendar
         2: { cellWidth: 9 },   // Day
         3: { cellWidth: 11 },  // Fajr
@@ -427,6 +423,11 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
         13: { cellWidth: 12 }  // Isha Iqama
       },
       didParseCell: (cellData: any) => {
+        // Style the logo cell
+        if (logo && cellData.section === 'head' && cellData.row.index === 0 && cellData.column.index === 0) {
+          cellData.cell.styles.fillColor = [255, 255, 255]
+        }
+        
         // Make Friday rows bold
         if (cellData.section === 'body' && cellData.column.index === 2) {
           const cellText = cellData.cell.text[0]
@@ -434,6 +435,16 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
             Object.values(cellData.row.cells).forEach((cell: any) => {
               cell.styles.fontStyle = 'bold'
             })
+          }
+        }
+        
+        // Apply background color to Iqama columns
+        if (cellData.section === 'body') {
+          const rowIndex = cellData.row.index
+          const colIndex = cellData.column.index
+          
+          if (iqamaColors[rowIndex] && iqamaColors[rowIndex][colIndex]) {
+            cellData.cell.styles.fillColor = iqamaColors[rowIndex][colIndex]
           }
         }
         
@@ -445,6 +456,23 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
           if (rowSpans[rowIndex] && rowSpans[rowIndex][colIndex]) {
             cellData.cell.rowSpan = rowSpans[rowIndex][colIndex]
           }
+        }
+      },
+      didDrawCell: (cellData: any) => {
+        // Draw logo in the first cell (spanning 2 rows)
+        if (logo && cellData.section === 'head' && cellData.row.index === 0 && cellData.column.index === 0) {
+          const cellX = cellData.cell.x
+          const cellY = cellData.cell.y
+          const cellWidth = cellData.cell.width
+          const cellHeight = cellData.cell.height
+          
+          // cellHeight should already include the rowSpan height
+          // Use 0.95 to fit logo within cell bounds without cropping
+          const logoSize = Math.min(cellWidth * 0.95, cellHeight * 0.95)
+          const logoX = cellX + (cellWidth - logoSize) / 2
+          const logoY = cellY + (cellHeight - logoSize) / 2
+          
+          doc.addImage(logo, 'PNG', logoX, logoY, logoSize, logoSize)
         }
       },
       margin: { top: 8, bottom: 8, left: 20, right: 20 },
