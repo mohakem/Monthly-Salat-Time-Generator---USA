@@ -60,7 +60,56 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
   const [error, setError] = useState<string | null>(null)
   const [generated, setGenerated] = useState(false)
   const [iqamaOverrides, setIqamaOverrides] = useState<Record<string, Partial<Record<'Fajr' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha', string>>>>({})
+  const [jumuahOverrides, setJumuahOverrides] = useState<Record<string, string[]>>({})
   const [specialNotes, setSpecialNotes] = useState<string>('')
+
+  const updateJumuahOverride = (date: string, sessionIndex: number, value: string) => {
+    setJumuahOverrides((prev) => {
+      const updated = { ...prev }
+      if (value) {
+        // Validate that the Jumu'ah time is after the Dhuhr prayer time
+        const dateIndex = data.findIndex((d) => d.date.gregorian.date === date)
+        if (dateIndex >= 0) {
+          const dayData = data[dateIndex]
+          const dhuhrTimeStr = dayData.timings.Dhuhr
+          const dhuhrTime = parseTiming(date, dhuhrTimeStr)
+          
+          try {
+            const jumuahTime = parseTiming(date, value)
+            if (jumuahTime <= dhuhrTime) {
+              alert('Jumu\'ah time is provided earlier than Dhuhr prayer start time')
+              return prev
+            }
+          } catch (e) {
+            // Invalid format, let it through for now
+          }
+        }
+        
+        // Update this date's Jumu'ah times
+        const currentTimes = updated[date] || [...(settings.jumuahTimes || [])]
+        const newTimes = [...currentTimes]
+        newTimes[sessionIndex] = value
+        updated[date] = newTimes
+        
+        // Apply to all subsequent Fridays
+        for (let i = dateIndex + 1; i < data.length; i++) {
+          const currentDate = data[i].date.gregorian.date
+          const dayOfWeek = getDayOfWeek(currentDate)
+          if (dayOfWeek === 'Fri') {
+            updated[currentDate] = [...newTimes]
+          }
+        }
+      } else {
+        // Clear override for this session
+        if (updated[date]) {
+          const newTimes = [...updated[date]]
+          newTimes[sessionIndex] = settings.jumuahTimes?.[sessionIndex] || ''
+          updated[date] = newTimes
+        }
+      }
+      return updated
+    })
+  }
 
   const updateIqamaOverride = (date: string, prayer: string, value: string) => {
     setIqamaOverrides((prev) => {
@@ -131,6 +180,9 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
       const gregDate = d.date.gregorian.date
       const timings = d.timings
       const overrides = iqamaOverrides[gregDate] || {}
+      const dayOfWeek = getDayOfWeek(gregDate)
+      const isFriday = dayOfWeek === 'Fri'
+      
       const iqamas = {
         Fajr:
           settings.fajrMode === 'static'
@@ -150,13 +202,23 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
             ? computeIqama(gregDate, timings.Isha, { mode: 'static', time: settings.ishaStatic })
             : computeIqama(gregDate, timings.Isha, { mode: 'dynamic', offsetMinutes: settings.ishaOffset })
       }
+      
+      // Get Dhuhr/Jumu'ah Iqama time
+      let dhuhrIqamaValue
+      if (isFriday) {
+        const jumuahTimes = jumuahOverrides[gregDate] || settings.jumuahTimes || []
+        dhuhrIqamaValue = jumuahTimes.filter(t => t).join('\n') || formatTime(iqamas.Dhuhr)
+      } else {
+        dhuhrIqamaValue = overrides.Dhuhr || formatTime(iqamas.Dhuhr)
+      }
+      
       return {
         Date: gregDate,
         Fajr: formatTime(parseTiming(gregDate, timings.Fajr)),
         'Fajr Iqama': overrides.Fajr || formatTime(iqamas.Fajr),
         Sunrise: formatTime(parseTiming(gregDate, timings.Sunrise)),
         Dhuhr: formatTime(parseTiming(gregDate, timings.Dhuhr)),
-        'Dhuhr Iqama': overrides.Dhuhr || formatTime(iqamas.Dhuhr),
+        'Dhuhr Iqama': dhuhrIqamaValue,
         Asr: formatTime(parseTiming(gregDate, timings.Asr)),
         'Asr Iqama': overrides.Asr || formatTime(iqamas.Asr),
         Maghrib: formatTime(parseTiming(gregDate, timings.Maghrib)),
@@ -260,9 +322,9 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
       }
       
       const isFriday = dayOfWeek === 'Fri'
-      const jumuahTimes = settings.jumuahTimes || []
+      const jumuahTimes = jumuahOverrides[gregDate] || settings.jumuahTimes || []
       const dhuhrIqamaText = isFriday 
-        ? jumuahTimes.join('\n')
+        ? jumuahTimes.filter(t => t).join('\n')
         : (overrides.Dhuhr || formatTime(iqamas.Dhuhr))
       
       return {
@@ -692,11 +754,22 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
                 <td style={{ textAlign: 'center' }}>
                   {isFriday ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
-                      {(settings.jumuahTimes || []).map((time, idx) => (
-                        <span key={idx}>
-                          {time || `Jumu'ah ${idx + 1}`}
-                        </span>
-                      ))}
+                      {(settings.jumuahTimes || []).map((time, idx) => {
+                        const overrideValue = jumuahOverrides[gregDate]?.[idx]
+                        return (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <input
+                              type="text"
+                              placeholder="HH:MM AM/PM"
+                              value={overrideValue || ''}
+                              onChange={(e) => updateJumuahOverride(gregDate, idx, e.target.value)}
+                              title="Enter time in 12-hour AM/PM format (e.g., 1:30 PM)"
+                              style={{ width: '100px', padding: '2px' }}
+                            />
+                            {!overrideValue && <span style={{ color: '#666' }}>{time || `Jumu'ah ${idx + 1}`}</span>}
+                          </div>
+                        )
+                      })}
                     </div>
                   ) : (
                     <>
