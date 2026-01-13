@@ -429,12 +429,12 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
       head: [
         // First row: Logo cell + Organization name
         ...(logo || settings.organizationName ? [[
-          { content: '', rowSpan: 2, styles: { fillColor: [255, 255, 255] } }, // Logo cell spanning 2 rows
-          { content: settings.organizationName || '', colSpan: 13, styles: { halign: 'center', fontSize: 14, fontStyle: 'bold', fillColor: [255, 255, 255], textColor: [0, 0, 0], minCellHeight: 15 } }
+          { content: '', rowSpan: 2, styles: { fillColor: [255, 255, 255] as [number, number, number] } }, // Logo cell spanning 2 rows
+          { content: settings.organizationName || '', colSpan: 13, styles: { halign: 'center' as const, fontSize: 14, fontStyle: 'bold' as const, fillColor: [255, 255, 255] as [number, number, number], textColor: [0, 0, 0] as [number, number, number], minCellHeight: 15 } }
         ]] : []),
         // Second row: Month/year title
         ...(logo || settings.organizationName ? [[
-          { content: titleText, colSpan: 13, styles: { halign: 'center', fontSize: 10, fontStyle: 'bold', fillColor: [255, 255, 255], textColor: [0, 0, 0] } }
+          { content: titleText, colSpan: 13, styles: { halign: 'center' as const, fontSize: 10, fontStyle: 'bold' as const, fillColor: [255, 255, 255] as [number, number, number], textColor: [0, 0, 0] as [number, number, number] } }
         ]] : []),
         // Column headers
         [
@@ -464,12 +464,12 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
         valign: 'middle'
       },
       headStyles: {
-        fillColor: [41, 128, 185],
+        fillColor: [41, 128, 185] as [number, number, number],
         textColor: 255,
-        fontStyle: 'bold',
+        fontStyle: 'bold' as const,
         fontSize: 6.8,
         minCellHeight: 5,
-        halign: 'center'
+        halign: 'center' as const
       },
       columnStyles: {
         0: { cellWidth: 14 },  // Date (logo column - doubled from 7 to 14)
