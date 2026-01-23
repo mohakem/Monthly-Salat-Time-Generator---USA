@@ -23,9 +23,25 @@ export async function getMonthlyByZip(zip: string, year: number, month: number, 
   const res = await fetch(url)
   if (!res.ok) throw new Error('Aladhan API error')
   const j = await res.json()
-  // Normalize
+  
+  // Helper function to convert DD-MM-YYYY to MM-DD-YYYY
+  const convertDateFormat = (dateStr: string): string => {
+    const [dd, mm, yyyy] = dateStr.split('-')
+    return `${mm}-${dd}-${yyyy}`
+  }
+  
+  // Normalize and convert date format
   const data: MonthlyPrayerData[] = j.data.map((d: any) => ({
-    date: d.date,
+    date: {
+      gregorian: {
+        ...d.date.gregorian,
+        date: convertDateFormat(d.date.gregorian.date)
+      },
+      hijri: {
+        ...d.date.hijri,
+        date: convertDateFormat(d.date.hijri.date)
+      }
+    },
     timings: d.timings
   }))
   return data

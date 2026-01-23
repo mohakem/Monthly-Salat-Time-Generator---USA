@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from 'react'
 import SettingsForm, { Settings } from './components/SettingsForm'
 import MonthlySchedule from './pages/MonthlySchedule'
+import { parseExcelFile, ParsedExcelData } from './utils/excelParser'
 
 const STORAGE_KEY = 'prayer_settings_v1'
 
@@ -46,6 +47,17 @@ export default function App() {
 
   const [generateSignal, setGenerateSignal] = useState<number | undefined>(undefined)
   const [logo, setLogo] = useState<string | null>(null)
+  const [uploadedData, setUploadedData] = useState<ParsedExcelData[] | null>(null)
+
+  const handleFileUpload = async (file: File) => {
+    try {
+      const parsedData = await parseExcelFile(file)
+      setUploadedData(parsedData)
+    } catch (error) {
+      alert(`Error parsing Excel file: ${error}`)
+      console.error('Excel parsing error:', error)
+    }
+  }
 
   return (
     <div className="container">
@@ -78,10 +90,11 @@ export default function App() {
             onGenerate={() => setGenerateSignal((s) => (s ?? 0) + 1)}
             logo={logo}
             onLogoChange={setLogo}
+            onFileUpload={handleFileUpload}
           />
         </aside>
         <section>
-          <MonthlySchedule settings={settings} generateSignal={generateSignal} logo={logo} />
+          <MonthlySchedule settings={settings} generateSignal={generateSignal} logo={logo} uploadedData={uploadedData} />
         </section>
       </main>
     </div>

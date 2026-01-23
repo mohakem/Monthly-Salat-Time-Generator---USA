@@ -73,7 +73,7 @@ const MONTHS = [
   'December'
 ]
 
-export default function SettingsForm({ settings, onChange, onGenerate, logo, onLogoChange }: { settings: Settings; onChange: (s: Settings) => void; onGenerate?: () => void; logo?: string | null; onLogoChange?: (logo: string | null) => void }) {
+export default function SettingsForm({ settings, onChange, onGenerate, logo, onLogoChange, onFileUpload }: { settings: Settings; onChange: (s: Settings) => void; onGenerate?: () => void; logo?: string | null; onLogoChange?: (logo: string | null) => void; onFileUpload?: (file: File) => void }) {
   const update = (patch: Partial<Settings>) => onChange({ ...settings, ...patch })
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,6 +84,15 @@ export default function SettingsForm({ settings, onChange, onGenerate, logo, onL
         onLogoChange(event.target?.result as string)
       }
       reader.readAsDataURL(file)
+    }
+  }
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file && onFileUpload) {
+      onFileUpload(file)
+      // Reset the input so the same file can be uploaded again if needed
+      e.target.value = ''
     }
   }
 
@@ -115,6 +124,42 @@ export default function SettingsForm({ settings, onChange, onGenerate, logo, onL
             ✕ Remove
           </button>
         )}
+      </div>
+
+      <div style={{ 
+        marginBottom: '20px', 
+        padding: '16px', 
+        border: '2px dashed #4CAF50', 
+        borderRadius: '8px', 
+        backgroundColor: '#f1f8f4',
+        textAlign: 'center'
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: '12px', fontSize: '14px', color: '#2e7d32' }}>
+          Upload Previously Downloaded Excel
+        </h3>
+        <p style={{ fontSize: '12px', color: '#555', marginBottom: '12px' }}>
+          Skip the form! Upload an Excel file you previously downloaded to regenerate the table.
+        </p>
+        <label htmlFor="excel-upload" style={{ 
+          cursor: 'pointer', 
+          padding: '10px 20px', 
+          border: '1px solid #4CAF50', 
+          borderRadius: '4px', 
+          backgroundColor: '#4CAF50', 
+          color: 'white',
+          display: 'inline-block',
+          fontWeight: 'bold',
+          fontSize: '14px'
+        }}>
+          📤 Upload Excel File
+        </label>
+        <input
+          id="excel-upload"
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleExcelUpload}
+          style={{ display: 'none' }}
+        />
       </div>
 
       <label>

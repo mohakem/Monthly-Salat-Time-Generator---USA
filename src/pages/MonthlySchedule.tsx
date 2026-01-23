@@ -9,6 +9,7 @@ import { getMonthlyByZip } from '../api/aladhan'
 import SettingsForm, { Settings } from '../components/SettingsForm'
 import PrayerRow from '../components/PrayerRow'
 import { computeIqama, formatTime, parseTiming } from '../utils/prayerUtils'
+import { ParsedExcelData } from '../utils/excelParser'
 
 function isValidIqamaTime(date: string, prayerTimeStr: string, iqamaDate: Date): boolean {
   const prayerTime = parseTiming(date, prayerTimeStr)
@@ -16,8 +17,8 @@ function isValidIqamaTime(date: string, prayerTimeStr: string, iqamaDate: Date):
 }
 
 function getDayOfWeek(dateStr: string): string {
-  // dateStr: DD-MM-YYYY
-  const [dd, mm, yyyy] = dateStr.split('-')
+  // dateStr: MM-DD-YYYY
+  const [mm, dd, yyyy] = dateStr.split('-')
   // Use Date constructor with year, month (0-indexed), day to avoid timezone issues
   const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd))
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -25,8 +26,8 @@ function getDayOfWeek(dateStr: string): string {
 }
 
 function getDayNumber(dateStr: string): string {
-  // dateStr: DD-MM-YYYY, extract just DD and remove leading zero
-  return String(Number(dateStr.split('-')[0]))
+  // dateStr: MM-DD-YYYY, extract just DD and remove leading zero
+  return String(Number(dateStr.split('-')[1]))
 }
 
 function getMonthYearDisplay(month: number, year: number): string {
@@ -54,7 +55,7 @@ function getFormattedCalendarDate(d: any, cal: 'Gregorian' | 'Hijri'): string {
   }
 }
 
-export default function MonthlySchedule({ settings, generateSignal, logo }: { settings: Settings; generateSignal?: number; logo?: string | null }) {
+export default function MonthlySchedule({ settings, generateSignal, logo, uploadedData }: { settings: Settings; generateSignal?: number; logo?: string | null; uploadedData?: ParsedExcelData[] | null }) {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,6 +63,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
   const [iqamaOverrides, setIqamaOverrides] = useState<Record<string, Partial<Record<'Fajr' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha', string>>>>({})
   const [jumuahOverrides, setJumuahOverrides] = useState<Record<string, string[]>>({})
   const [specialNotes, setSpecialNotes] = useState<string>('')
+  const [isFromUpload, setIsFromUpload] = useState(false)
 
   const updateJumuahOverride = (date: string, sessionIndex: number, value: string) => {
     setJumuahOverrides((prev) => {
@@ -159,6 +161,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
   const fetchData = () => {
     setLoading(true)
     setError(null)
+    setIsFromUpload(false)
     // For Hijri calendar, use approximate Hijri year (Gregorian - 579)
     // For Gregorian calendar, use current Gregorian year
     const gregorianYear = new Date().getFullYear()
@@ -167,6 +170,85 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
       .then((d) => setData(d))
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
+  }
+
+  const loadFromExcelData = (excelData: ParsedExcelData[]) => {
+    setLoading(true)
+    setError(null)
+    setIsFromUpload(true)
+    
+    try {
+      // Convert Excel data to the format expected by the component
+      const convertedData = excelData.map(row => {
+        // Parse date (MM-DD-YYYY)
+        const [mm, dd, yyyy] = row.date.split('-')
+        const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd))
+        
+        // Create a mock data object that matches the API response structure
+        return {
+          date: {
+            gregorian: {
+              date: row.date,
+              month: {
+                en: date.toLocaleString('en-US', { month: 'long' })
+              },
+              year: Number(yyyy),
+              day: String(dd)
+            },
+            hijri: {
+              date: row.date, // Simplified - won't have exact Hijri conversion
+              month: {
+                en: 'N/A'
+              },
+              year: Number(yyyy) - 579 // Approximate
+            }
+          },
+          timings: {
+            Fajr: row.fajr,
+            Sunrise: row.sunrise,
+            Dhuhr: row.dhuhr,
+            Asr: row.asr,
+            Maghrib: row.maghrib,
+            Isha: row.isha
+          }
+        }
+      })
+      
+      setData(convertedData)
+      
+      // Set iqama overrides from the Excel data
+      const newIqamaOverrides: Record<string, Partial<Record<'Fajr' | 'Dhuhr' | 'Asr' | 'Maghrib' | 'Isha', string>>> = {}
+      excelData.forEach(row => {
+        newIqamaOverrides[row.date] = {
+          Fajr: row.fajrIqama,
+          Dhuhr: row.dhuhrIqama,
+          Asr: row.asrIqama,
+          Maghrib: row.maghribIqama,
+          Isha: row.ishaIqama
+        }
+      })
+      setIqamaOverrides(newIqamaOverrides)
+      
+      // Parse Jumu'ah times from Dhuhr Iqama on Fridays
+      const newJumuahOverrides: Record<string, string[]> = {}
+      excelData.forEach(row => {
+        const dayOfWeek = getDayOfWeek(row.date)
+        if (dayOfWeek === 'Fri' && row.dhuhrIqama) {
+          // Split by newline in case there are multiple Jumu'ah times
+          const times = row.dhuhrIqama.split('\n').filter(t => t.trim())
+          if (times.length > 0) {
+            newJumuahOverrides[row.date] = times
+          }
+        }
+      })
+      setJumuahOverrides(newJumuahOverrides)
+      
+      setGenerated(true)
+    } catch (err) {
+      setError(`Error parsing Excel data: ${err}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const downloadExcel = () => {
@@ -574,10 +656,18 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generateSignal])
 
+  useEffect(() => {
+    if (uploadedData && uploadedData.length > 0) {
+      // Process uploaded Excel data
+      loadFromExcelData(uploadedData)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadedData])
+
   if (!generated)
     return (
       <div>
-        <p>Configure settings and click Generate Table.</p>
+        <p>Configure settings and click Generate Table, or upload a previously downloaded Excel file.</p>
       </div>
     )
 
@@ -586,6 +676,19 @@ export default function MonthlySchedule({ settings, generateSignal, logo }: { se
 
   return (
     <div>
+      {isFromUpload && (
+        <div style={{
+          backgroundColor: '#e8f5e9',
+          border: '1px solid #4CAF50',
+          borderRadius: '4px',
+          padding: '12px',
+          marginBottom: '16px',
+          color: '#2e7d32',
+          fontWeight: 'bold'
+        }}>
+          ✓ Table loaded from uploaded Excel file
+        </div>
+      )}
       <div style={{ marginBottom: 8 }}>
         <button
           onClick={() => {

@@ -6,11 +6,11 @@ export type IqamaOption =
   | { mode: 'dynamic'; offsetMinutes: number }
 
 function toDateISO(dateStr: string, timeStr: string) {
-  // dateStr: Aladhan usually provides "DD-MM-YYYY"; normalize to YYYY-MM-DD
+  // dateStr: Aladhan usually provides "DD-MM-YYYY"; we convert to MM-DD-YYYY; normalize to YYYY-MM-DD
   const normalize = (d: string) => {
-    const ddmmyyyy = /^\d{2}-\d{2}-\d{4}$/.test(d)
-    if (ddmmyyyy) {
-      const [dd, mm, yyyy] = d.split('-')
+    const mmddyyyy = /^\d{2}-\d{2}-\d{4}$/.test(d)
+    if (mmddyyyy) {
+      const [mm, dd, yyyy] = d.split('-')
       return `${yyyy}-${mm}-${dd}`
     }
     return d
