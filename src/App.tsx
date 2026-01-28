@@ -36,7 +36,8 @@ export default function App() {
       zoharStatic: '1:15 PM',
       zoharOffset: 10,
       includeSunrise: true,
-      use12HourFormat: true
+      use12HourFormat: true,
+      showIqamaColumns: true
     }
     
     return parsed ? { ...defaults, ...parsed } : defaults

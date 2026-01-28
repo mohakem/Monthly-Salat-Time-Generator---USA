@@ -27,6 +27,7 @@ export type Settings = {
   zoharOffset: number
   includeSunrise: boolean
   use12HourFormat: boolean
+  showIqamaColumns: boolean
 }
 
 const GREGORIAN_MONTHS = [
@@ -197,6 +198,13 @@ export default function SettingsForm({ settings, onChange, onGenerate, logo, onL
         </select>
     </label>
 
+      <label>
+        Show Iqama Columns
+        <input type="checkbox" checked={settings.showIqamaColumns} onChange={(e) => update({ showIqamaColumns: e.target.checked })} />
+      </label>
+
+      {settings.showIqamaColumns && (
+      <>
       <fieldset>
         <legend>Jumu'ah (Friday Prayers)</legend>
         <label>
@@ -345,6 +353,8 @@ export default function SettingsForm({ settings, onChange, onGenerate, logo, onL
           />
         </label>
       </fieldset>
+      </>
+      )}
 
       <label>
         Include Sunrise

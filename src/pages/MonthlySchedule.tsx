@@ -306,20 +306,41 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
         dhuhrIqamaValue = overrides.Dhuhr || formatTime(iqamas.Dhuhr, settings.use12HourFormat)
       }
       
-      return {
+      const row: any = {
         Date: gregDate,
-        Fajr: formatTime(parseTiming(gregDate, timings.Fajr), settings.use12HourFormat),
-        'Fajr Iqama': overrides.Fajr || formatTime(iqamas.Fajr, settings.use12HourFormat),
-        Sunrise: formatTime(parseTiming(gregDate, timings.Sunrise), settings.use12HourFormat),
-        Dhuhr: formatTime(parseTiming(gregDate, timings.Dhuhr), settings.use12HourFormat),
-        'Dhuhr Iqama': dhuhrIqamaValue,
-        Asr: formatTime(parseTiming(gregDate, timings.Asr), settings.use12HourFormat),
-        'Asr Iqama': overrides.Asr || formatTime(iqamas.Asr, settings.use12HourFormat),
-        Maghrib: formatTime(parseTiming(gregDate, timings.Maghrib), settings.use12HourFormat),
-        'Maghrib Iqama': overrides.Maghrib || formatTime(iqamas.Maghrib, settings.use12HourFormat),
-        Isha: formatTime(parseTiming(gregDate, timings.Isha), settings.use12HourFormat),
-        'Isha Iqama': overrides.Isha || formatTime(iqamas.Isha, settings.use12HourFormat)
+        Fajr: formatTime(parseTiming(gregDate, timings.Fajr), settings.use12HourFormat)
       }
+      
+      if (settings.showIqamaColumns) {
+        row['Fajr Iqama'] = overrides.Fajr || formatTime(iqamas.Fajr, settings.use12HourFormat)
+      }
+      
+      row['Sunrise'] = formatTime(parseTiming(gregDate, timings.Sunrise), settings.use12HourFormat)
+      row['Dhuhr'] = formatTime(parseTiming(gregDate, timings.Dhuhr), settings.use12HourFormat)
+      
+      if (settings.showIqamaColumns) {
+        row['Dhuhr Iqama'] = dhuhrIqamaValue
+      }
+      
+      row['Asr'] = formatTime(parseTiming(gregDate, timings.Asr), settings.use12HourFormat)
+      
+      if (settings.showIqamaColumns) {
+        row['Asr Iqama'] = overrides.Asr || formatTime(iqamas.Asr, settings.use12HourFormat)
+      }
+      
+      row['Maghrib'] = formatTime(parseTiming(gregDate, timings.Maghrib), settings.use12HourFormat)
+      
+      if (settings.showIqamaColumns) {
+        row['Maghrib Iqama'] = overrides.Maghrib || formatTime(iqamas.Maghrib, settings.use12HourFormat)
+      }
+      
+      row['Isha'] = formatTime(parseTiming(gregDate, timings.Isha), settings.use12HourFormat)
+      
+      if (settings.showIqamaColumns) {
+        row['Isha Iqama'] = overrides.Isha || formatTime(iqamas.Isha, settings.use12HourFormat)
+      }
+      
+      return row
     })
 
     const ws = XLSX.utils.json_to_sheet(rows)
@@ -441,13 +462,14 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
     })
 
     // Calculate rowSpans for Iqama columns (indices 4, 7, 9, 11, 13)
-    const iqamaColumns = [
+    // When Iqama columns are hidden, indices shift: no iqama columns to process
+    const iqamaColumns = settings.showIqamaColumns ? [
       { index: 4, key: 'fajrIqama' },
       { index: 7, key: 'dhuhrIqama' },
       { index: 9, key: 'asrIqama' },
       { index: 11, key: 'maghribIqama' },
       { index: 13, key: 'ishaIqama' }
-    ]
+    ] : []
     
     const rowSpans: Record<number, Record<number, number>> = {}
     const iqamaColors: Record<number, Record<number, [number, number, number]>> = {}
@@ -503,20 +525,22 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
         row.otherDate,
         row.dayOfWeek,
         row.fajrTime,
-        row.fajrIqama,
+        ...(settings.showIqamaColumns ? [row.fajrIqama] : []),
         row.sunrise,
         row.dhuhrTime,
-        row.dhuhrIqama,
+        ...(settings.showIqamaColumns ? [row.dhuhrIqama] : []),
         row.asrTime,
-        row.asrIqama,
+        ...(settings.showIqamaColumns ? [row.asrIqama] : []),
         row.maghribTime,
-        row.maghribIqama,
+        ...(settings.showIqamaColumns ? [row.maghribIqama] : []),
         row.ishaTime,
-        row.ishaIqama
+        ...(settings.showIqamaColumns ? [row.ishaIqama] : [])
       ]
       
       return baseRow
     })
+    
+    const totalColumns = settings.showIqamaColumns ? 14 : 9
     
     autoTable(doc, {
       startY: startY,
@@ -524,11 +548,11 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
         // First row: Logo cell + Organization name
         ...(logo || settings.organizationName ? [[
           { content: '', rowSpan: 2, styles: { fillColor: [255, 255, 255] as [number, number, number] } }, // Logo cell spanning 2 rows
-          { content: settings.organizationName || '', colSpan: 13, styles: { halign: 'center' as const, fontSize: 14, fontStyle: 'bold' as const, fillColor: [255, 255, 255] as [number, number, number], textColor: [0, 0, 0] as [number, number, number], minCellHeight: 15 } }
+          { content: settings.organizationName || '', colSpan: totalColumns - 1, styles: { halign: 'center' as const, fontSize: 14, fontStyle: 'bold' as const, fillColor: [255, 255, 255] as [number, number, number], textColor: [0, 0, 0] as [number, number, number], minCellHeight: 15 } }
         ]] : []),
         // Second row: Month/year title
         ...(logo || settings.organizationName ? [[
-          { content: titleText, colSpan: 13, styles: { halign: 'center' as const, fontSize: 10, fontStyle: 'bold' as const, fillColor: [255, 255, 255] as [number, number, number], textColor: [0, 0, 0] as [number, number, number] } }
+          { content: titleText, colSpan: totalColumns - 1, styles: { halign: 'center' as const, fontSize: 10, fontStyle: 'bold' as const, fillColor: [255, 255, 255] as [number, number, number], textColor: [0, 0, 0] as [number, number, number] } }
         ]] : []),
         // Column headers
         [
@@ -536,16 +560,16 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
           otherCalendarLabel(settings.calendar as any),
           'Day',
           'Fajr',
-          'Fajr Iqama',
+          ...(settings.showIqamaColumns ? ['Fajr Iqama'] : []),
           'Sunrise',
           'Dhuhr',
-          'Dhuhr Iqama',
+          ...(settings.showIqamaColumns ? ['Dhuhr Iqama'] : []),
           'Asr',
-          'Asr Iqama',
+          ...(settings.showIqamaColumns ? ['Asr Iqama'] : []),
           'Sunset Maghrib',
-          'Maghrib Iqama',
+          ...(settings.showIqamaColumns ? ['Maghrib Iqama'] : []),
           'Isha',
-          'Isha Iqama'
+          ...(settings.showIqamaColumns ? ['Isha Iqama'] : [])
         ]
       ],
       body: tableData,
@@ -565,7 +589,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
         minCellHeight: 5,
         halign: 'center' as const
       },
-      columnStyles: {
+      columnStyles: settings.showIqamaColumns ? {
         0: { cellWidth: 14 },  // Date (logo column - doubled from 7 to 14)
         1: { cellWidth: 16 },  // Other calendar
         2: { cellWidth: 9 },   // Day
@@ -580,6 +604,16 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
         11: { cellWidth: 12 }, // Maghrib Iqama
         12: { cellWidth: 11 }, // Isha
         13: { cellWidth: 12 }  // Isha Iqama
+      } : {
+        0: { cellWidth: 20 },  // Date
+        1: { cellWidth: 20 },  // Other calendar
+        2: { cellWidth: 14 },  // Day
+        3: { cellWidth: 16 },  // Fajr
+        4: { cellWidth: 16 },  // Sunrise
+        5: { cellWidth: 16 },  // Dhuhr
+        6: { cellWidth: 16 },  // Asr
+        7: { cellWidth: 20 },  // Maghrib
+        8: { cellWidth: 16 }   // Isha
       },
       didParseCell: (cellData: any) => {
         // Style the logo cell
@@ -743,13 +777,13 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
         <thead>
           {settings.organizationName && (
             <tr>
-              <th colSpan={15} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', padding: '8px' }}>
+              <th colSpan={settings.showIqamaColumns ? 15 : 10} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', padding: '8px' }}>
                 {settings.organizationName}
               </th>
             </tr>
           )}
           <tr>
-            <th colSpan={15} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '8px' }}>
+            <th colSpan={settings.showIqamaColumns ? 15 : 10} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '8px' }}>
               {data.length > 0 ? (() => {
                 const firstDay = data[0]
                 const lastDay = data[data.length - 1]
@@ -788,20 +822,20 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
             <th style={{ textAlign: 'center' }}>{otherCalendarLabel(settings.calendar as any)}</th>
             <th style={{ textAlign: 'center' }}>Day</th>
             <th style={{ textAlign: 'center' }}>Fajr</th>
-            <th style={{ textAlign: 'center' }}>Fajr Iqama</th>
+            {settings.showIqamaColumns && <th style={{ textAlign: 'center' }}>Fajr Iqama</th>}
             <th style={{ textAlign: 'center' }}>Sunrise</th>
 
             <th style={{ textAlign: 'center' }}>Dhuhr</th>
-            <th style={{ textAlign: 'center' }}>Dhuhr Iqama</th>
+            {settings.showIqamaColumns && <th style={{ textAlign: 'center' }}>Dhuhr Iqama</th>}
 
             <th style={{ textAlign: 'center' }}>Asr</th>
-            <th style={{ textAlign: 'center' }}>Asr Iqama</th>
+            {settings.showIqamaColumns && <th style={{ textAlign: 'center' }}>Asr Iqama</th>}
 
             <th style={{ textAlign: 'center' }}>Sunset Maghrib</th>
-            <th style={{ textAlign: 'center' }}>Maghrib Iqama</th>
+            {settings.showIqamaColumns && <th style={{ textAlign: 'center' }}>Maghrib Iqama</th>}
 
             <th style={{ textAlign: 'center' }}>Isha</th>
-            <th style={{ textAlign: 'center' }}>Isha Iqama</th>
+            {settings.showIqamaColumns && <th style={{ textAlign: 'center' }}>Isha Iqama</th>}
           </tr>
         </thead>
         <tbody>
@@ -853,6 +887,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                 <td style={{ textAlign: 'center' }}>{otherDate}</td>
                 <td style={{ textAlign: 'center' }}>{dayOfWeek}</td>
                 <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Fajr), settings.use12HourFormat)}</td>
+                {settings.showIqamaColumns && (
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
@@ -864,8 +899,10 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                   />
                   {!fajrOverride && <span style={{ color: '#666' }}>{fajrIqamaText}</span>}
                 </td>
+                )}
                 <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Sunrise), settings.use12HourFormat)}</td>
                 <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Dhuhr), settings.use12HourFormat)}</td>
+                {settings.showIqamaColumns && (
                 <td style={{ textAlign: 'center' }}>
                   {isFriday ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
@@ -907,7 +944,9 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                     </>
                   )}
                 </td>
+                )}
                 <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Asr), settings.use12HourFormat)}</td>
+                {settings.showIqamaColumns && (
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
@@ -919,7 +958,9 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                   />
                   {!asrOverride && <span style={{ color: '#666' }}>{asrIqamaText}</span>}
                 </td>
+                )}
                 <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Maghrib), settings.use12HourFormat)}</td>
+                {settings.showIqamaColumns && (
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
@@ -931,7 +972,9 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                   />
                   {!maghribOverride && <span style={{ color: '#666' }}>{formatTime(iqamas.Maghrib, settings.use12HourFormat)}</span>}
                 </td>
+                )}
                 <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Isha), settings.use12HourFormat)}</td>
+                {settings.showIqamaColumns && (
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
@@ -943,6 +986,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                   />
                   {!ishaOverride && <span style={{ color: '#666' }}>{ishaIqamaText}</span>}
                 </td>
+                )}
               </tr>
             )
           })}
