@@ -29,7 +29,19 @@ function getDayNumber(dateStr: string): string {
   // dateStr: MM-DD-YYYY, extract just DD and remove leading zero
   return String(Number(dateStr.split('-')[1]))
 }
-
+function formatJumuahTimes(times: string[], date: string, use12HourFormat: boolean): string {
+  return times
+    .filter(t => t)
+    .map(timeStr => {
+      try {
+        const parsed = parseTiming(date, timeStr)
+        return formatTime(parsed, use12HourFormat)
+      } catch {
+        return timeStr
+      }
+    })
+    .join('\n')
+}
 function getMonthYearDisplay(month: number, year: number): string {
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   return `${months[month - 1]} ${year}`
@@ -289,24 +301,24 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
       let dhuhrIqamaValue
       if (isFriday) {
         const jumuahTimes = jumuahOverrides[gregDate] || settings.jumuahTimes || []
-        dhuhrIqamaValue = jumuahTimes.filter(t => t).join('\n') || formatTime(iqamas.Dhuhr)
+        dhuhrIqamaValue = formatJumuahTimes(jumuahTimes, gregDate, settings.use12HourFormat) || formatTime(iqamas.Dhuhr, settings.use12HourFormat)
       } else {
-        dhuhrIqamaValue = overrides.Dhuhr || formatTime(iqamas.Dhuhr)
+        dhuhrIqamaValue = overrides.Dhuhr || formatTime(iqamas.Dhuhr, settings.use12HourFormat)
       }
       
       return {
         Date: gregDate,
-        Fajr: formatTime(parseTiming(gregDate, timings.Fajr)),
-        'Fajr Iqama': overrides.Fajr || formatTime(iqamas.Fajr),
-        Sunrise: formatTime(parseTiming(gregDate, timings.Sunrise)),
-        Dhuhr: formatTime(parseTiming(gregDate, timings.Dhuhr)),
+        Fajr: formatTime(parseTiming(gregDate, timings.Fajr), settings.use12HourFormat),
+        'Fajr Iqama': overrides.Fajr || formatTime(iqamas.Fajr, settings.use12HourFormat),
+        Sunrise: formatTime(parseTiming(gregDate, timings.Sunrise), settings.use12HourFormat),
+        Dhuhr: formatTime(parseTiming(gregDate, timings.Dhuhr), settings.use12HourFormat),
         'Dhuhr Iqama': dhuhrIqamaValue,
-        Asr: formatTime(parseTiming(gregDate, timings.Asr)),
-        'Asr Iqama': overrides.Asr || formatTime(iqamas.Asr),
-        Maghrib: formatTime(parseTiming(gregDate, timings.Maghrib)),
-        'Maghrib Iqama': overrides.Maghrib || formatTime(iqamas.Maghrib),
-        Isha: formatTime(parseTiming(gregDate, timings.Isha)),
-        'Isha Iqama': overrides.Isha || formatTime(iqamas.Isha)
+        Asr: formatTime(parseTiming(gregDate, timings.Asr), settings.use12HourFormat),
+        'Asr Iqama': overrides.Asr || formatTime(iqamas.Asr, settings.use12HourFormat),
+        Maghrib: formatTime(parseTiming(gregDate, timings.Maghrib), settings.use12HourFormat),
+        'Maghrib Iqama': overrides.Maghrib || formatTime(iqamas.Maghrib, settings.use12HourFormat),
+        Isha: formatTime(parseTiming(gregDate, timings.Isha), settings.use12HourFormat),
+        'Isha Iqama': overrides.Isha || formatTime(iqamas.Isha, settings.use12HourFormat)
       }
     })
 
@@ -406,24 +418,24 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
       const isFriday = dayOfWeek === 'Fri'
       const jumuahTimes = jumuahOverrides[gregDate] || settings.jumuahTimes || []
       const dhuhrIqamaText = isFriday 
-        ? jumuahTimes.filter(t => t).join('\n')
-        : (overrides.Dhuhr || formatTime(iqamas.Dhuhr))
+        ? formatJumuahTimes(jumuahTimes, gregDate, settings.use12HourFormat)
+        : (overrides.Dhuhr || formatTime(iqamas.Dhuhr, settings.use12HourFormat))
       
       return {
         dayNum,
         otherDate,
         dayOfWeek,
-        fajrTime: formatTime(parseTiming(gregDate, timings.Fajr)),
-        fajrIqama: overrides.Fajr || formatTime(iqamas.Fajr),
-        sunrise: formatTime(parseTiming(gregDate, timings.Sunrise)),
-        dhuhrTime: formatTime(parseTiming(gregDate, timings.Dhuhr)),
+        fajrTime: formatTime(parseTiming(gregDate, timings.Fajr), settings.use12HourFormat),
+        fajrIqama: overrides.Fajr || formatTime(iqamas.Fajr, settings.use12HourFormat),
+        sunrise: formatTime(parseTiming(gregDate, timings.Sunrise), settings.use12HourFormat),
+        dhuhrTime: formatTime(parseTiming(gregDate, timings.Dhuhr), settings.use12HourFormat),
         dhuhrIqama: dhuhrIqamaText,
-        asrTime: formatTime(parseTiming(gregDate, timings.Asr)),
-        asrIqama: overrides.Asr || formatTime(iqamas.Asr),
-        maghribTime: formatTime(parseTiming(gregDate, timings.Maghrib)),
-        maghribIqama: overrides.Maghrib || formatTime(iqamas.Maghrib),
-        ishaTime: formatTime(parseTiming(gregDate, timings.Isha)),
-        ishaIqama: overrides.Isha || formatTime(iqamas.Isha),
+        asrTime: formatTime(parseTiming(gregDate, timings.Asr), settings.use12HourFormat),
+        asrIqama: overrides.Asr || formatTime(iqamas.Asr, settings.use12HourFormat),
+        maghribTime: formatTime(parseTiming(gregDate, timings.Maghrib), settings.use12HourFormat),
+        maghribIqama: overrides.Maghrib || formatTime(iqamas.Maghrib, settings.use12HourFormat),
+        ishaTime: formatTime(parseTiming(gregDate, timings.Isha), settings.use12HourFormat),
+        ishaIqama: overrides.Isha || formatTime(iqamas.Isha, settings.use12HourFormat),
         isFriday
       }
     })
@@ -822,10 +834,10 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                   : computeIqama(gregDate, timings.Isha, { mode: 'dynamic', offsetMinutes: settings.ishaOffset })
             }
 
-            const fajrIqamaText = settings.fajrMode === 'static' && !isValidIqamaTime(gregDate, timings.Fajr, iqamas.Fajr!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Fajr)
-            const dhuhrIqamaText = settings.zoharMode === 'static' && !isValidIqamaTime(gregDate, timings.Dhuhr, iqamas.Dhuhr!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Dhuhr)
-            const asrIqamaText = settings.asrMode === 'static' && !isValidIqamaTime(gregDate, timings.Asr, iqamas.Asr!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Asr)
-            const ishaIqamaText = settings.ishaMode === 'static' && !isValidIqamaTime(gregDate, timings.Isha, iqamas.Isha!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Isha)
+            const fajrIqamaText = settings.fajrMode === 'static' && !isValidIqamaTime(gregDate, timings.Fajr, iqamas.Fajr!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Fajr, settings.use12HourFormat)
+            const dhuhrIqamaText = settings.zoharMode === 'static' && !isValidIqamaTime(gregDate, timings.Dhuhr, iqamas.Dhuhr!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Dhuhr, settings.use12HourFormat)
+            const asrIqamaText = settings.asrMode === 'static' && !isValidIqamaTime(gregDate, timings.Asr, iqamas.Asr!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Asr, settings.use12HourFormat)
+            const ishaIqamaText = settings.ishaMode === 'static' && !isValidIqamaTime(gregDate, timings.Isha, iqamas.Isha!) ? 'Iqama time is provided earlier than prayer start time' : formatTime(iqamas.Isha, settings.use12HourFormat)
 
             const overrides = iqamaOverrides[gregDate] || {}
             const fajrOverride = overrides.Fajr
@@ -840,7 +852,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                 <td style={{ textAlign: 'center' }}>{dayNum}</td>
                 <td style={{ textAlign: 'center' }}>{otherDate}</td>
                 <td style={{ textAlign: 'center' }}>{dayOfWeek}</td>
-                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Fajr))}</td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Fajr), settings.use12HourFormat)}</td>
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
@@ -852,13 +864,20 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                   />
                   {!fajrOverride && <span style={{ color: '#666' }}>{fajrIqamaText}</span>}
                 </td>
-                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Sunrise))}</td>
-                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Dhuhr))}</td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Sunrise), settings.use12HourFormat)}</td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Dhuhr), settings.use12HourFormat)}</td>
                 <td style={{ textAlign: 'center' }}>
                   {isFriday ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
                       {(settings.jumuahTimes || []).map((time, idx) => {
                         const overrideValue = jumuahOverrides[gregDate]?.[idx]
+                        const displayTime = time ? (() => {
+                          try {
+                            return formatTime(parseTiming(gregDate, time), settings.use12HourFormat)
+                          } catch {
+                            return time
+                          }
+                        })() : `Jumu'ah ${idx + 1}`
                         return (
                           <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <input
@@ -869,7 +888,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                               title="Enter time in 12-hour AM/PM format (e.g., 1:30 PM)"
                               style={{ width: '100px', padding: '2px' }}
                             />
-                            {!overrideValue && <span style={{ color: '#666' }}>{time || `Jumu'ah ${idx + 1}`}</span>}
+                            {!overrideValue && <span style={{ color: '#666' }}>{displayTime}</span>}
                           </div>
                         )
                       })}
@@ -888,7 +907,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                     </>
                   )}
                 </td>
-                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Asr))}</td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Asr), settings.use12HourFormat)}</td>
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
@@ -900,7 +919,7 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                   />
                   {!asrOverride && <span style={{ color: '#666' }}>{asrIqamaText}</span>}
                 </td>
-                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Maghrib))}</td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Maghrib), settings.use12HourFormat)}</td>
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"
@@ -910,9 +929,9 @@ export default function MonthlySchedule({ settings, generateSignal, logo, upload
                     title="Enter time in 12-hour AM/PM format (e.g., 6:30 PM)"
                     style={{ width: '100px', padding: '2px' }}
                   />
-                  {!maghribOverride && <span style={{ color: '#666' }}>{formatTime(iqamas.Maghrib)}</span>}
+                  {!maghribOverride && <span style={{ color: '#666' }}>{formatTime(iqamas.Maghrib, settings.use12HourFormat)}</span>}
                 </td>
-                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Isha))}</td>
+                <td style={{ textAlign: 'center' }}>{formatTime(parseTiming(gregDate, timings.Isha), settings.use12HourFormat)}</td>
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="text"

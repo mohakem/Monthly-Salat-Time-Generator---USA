@@ -35,7 +35,8 @@ export default function App() {
       zoharMode: 'dynamic',
       zoharStatic: '1:15 PM',
       zoharOffset: 10,
-      includeSunrise: true
+      includeSunrise: true,
+      use12HourFormat: true
     }
     
     return parsed ? { ...defaults, ...parsed } : defaults

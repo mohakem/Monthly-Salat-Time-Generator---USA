@@ -26,6 +26,7 @@ export type Settings = {
   zoharStatic: string
   zoharOffset: number
   includeSunrise: boolean
+  use12HourFormat: boolean
 }
 
 const GREGORIAN_MONTHS = [
@@ -348,6 +349,11 @@ export default function SettingsForm({ settings, onChange, onGenerate, logo, onL
       <label>
         Include Sunrise
         <input type="checkbox" checked={settings.includeSunrise} onChange={(e) => update({ includeSunrise: e.target.checked })} />
+      </label>
+
+      <label>
+        Show AM/PM (12-hour format)
+        <input type="checkbox" checked={settings.use12HourFormat} onChange={(e) => update({ use12HourFormat: e.target.checked })} />
       </label>
 
       <div style={{ marginTop: 12 }}>

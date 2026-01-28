@@ -56,7 +56,12 @@ export function computeIqama(dateStr: string, startTime: string, opt: IqamaOptio
   return d
 }
 
-export function formatTime(d?: Date) {
+export function formatTime(d?: Date, hour12: boolean = true) {
   if (!d) return ''
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
+  const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
+  if (!hour12) {
+    // Remove AM/PM suffix but keep 12-hour format
+    return timeStr.replace(/\s*(AM|PM|am|pm)$/i, '').trim()
+  }
+  return timeStr
 }
